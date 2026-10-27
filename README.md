@@ -44,6 +44,12 @@ DRE: Receita − Custos variáveis = **Margem de contribuição** − Despesas f
 - Só entram entradas a partir da data "Importar notas com entrada a partir de" (padrão: início do mês em que a loja começou a usar).
 - Ao atualizar o banco na nuvem, rode o `supabase/banco.sql` de novo no SQL Editor (pode rodar quantas vezes quiser).
 
+## Contas a receber (versão 1.4)
+- Vêm só do crediário do PDV+ (parcelas em `conta_pagar_receber` e recebimentos em `recebimento_pagamento`).
+  A cada sincronização a lista completa substitui a anterior. No painel é só consulta (o banco recusa incluir,
+  alterar ou excluir); para receber, usa-se o recebimento de crediário no PDV+.
+- Não muda a DRE: o crediário já entra pela forma de pagamento (competência: na venda; caixa: no recebimento).
+
 ## Backup (versão 1.3)
 - O programa da loja faz um backup por dia de tudo o que a loja tem na nuvem, em `%APPDATA%\Aliber Financeiro\backups`
   (últimos 30 dias), com cópia extra opcional em outra pasta.

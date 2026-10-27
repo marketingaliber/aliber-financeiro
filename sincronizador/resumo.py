@@ -136,6 +136,7 @@ def montar(db_path, data_ini, data_fim, versao=""):
         "data_ini": ini, "data_fim": data_fim.isoformat(),
         "vendas_dia": vendas_dia, "pagamentos_dia": pagamentos_dia,
         "fornecedores": fornecedores, "compras": compras,   # sempre a lista completa (não só o período)
+        "contas_receber": contas_receber(db_path),           # crediário: lista completa
     }
 
 
@@ -146,7 +147,8 @@ def totais(resumo):
          "recebido": _r(sum(p["valor"] for p in resumo["pagamentos_dia"])),
          "canceladas": sum(d["canceladas_qtd"] for d in resumo["vendas_dia"]),
          "notas": len({c["origem_id"].split("#")[0] for c in resumo.get("compras", [])}),
-         "fornecedores": len(resumo.get("fornecedores", []))}
+         "fornecedores": len(resumo.get("fornecedores", [])),
+         "a_receber": len([c for c in resumo.get("contas_receber", []) if c["situacao"] != "recebida"])}
     return t
 
 
@@ -283,3 +285,57 @@ def fornecedores_e_compras(db_path):
                 "data_entrada": data_entrada,
             })
     return list(fornecedores.values()), compras
+
+
+# ---------------------------------------------------------------- contas a receber (crediário)
+def contas_receber(db_path):
+    """Parcelas do crediário do PDV+ (conta_pagar_receber, tipo 0) com o que já foi recebido.
+
+    Vendas canceladas e parcelas apagadas ficam de fora. Situação: aberta, parcial ou recebida."""
+    con = conectar(db_path)
+    try:
+        tabelas = {r[0] for r in con.execute("select name from sqlite_master where type='table'")}
+        if "conta_pagar_receber" not in tabelas:
+            return []
+        tem_rec = "recebimento_pagamento" in tabelas
+        contas = con.execute(
+            """select c.id_conta_pagar_receber id, c.valor, c.vencimento, c.documento, c.data_hora_criado,
+                      cl.nome, coalesce(cl.cpf, cl.cnpj) doc, cl.fone,
+                      v.codigo_dispositivo, v.codigo_venda, v.data_hora_finalizada, v.nome_cliente
+                 from conta_pagar_receber c
+                 left join cliente cl on cl.id_cliente = c.id_cliente
+                 left join venda v on v.id_venda = c.id_venda
+                where c.data_hora_deletado is null and c.tipo_conta = 0 and coalesce(c.positiva_negativa, 1) = 1
+                  and coalesce(v.cancelada_pelo_usuario, 0) = 0""").fetchall()
+        recs = {}
+        if tem_rec:
+            for r in con.execute(
+                    """select r.id_conta_pagar_receber id, substr(r.data_liquidacao,1,10) data, r.valor, r.juros_reais, r.multa_reais,
+                              r.valor_liquidado, rv.codigo_dispositivo, rv.codigo_venda,
+                              (select group_concat(p.forma_pagamento) from venda_forma_pagamento p where p.id_venda = r.id_venda
+                                  and p.data_hora_deletado is null and coalesce(p.pagamento_cancelado_pelo_usuario,0)=0) formas
+                         from recebimento_pagamento r
+                         left join venda rv on rv.id_venda = r.id_venda
+                        where r.data_hora_deletado is null and coalesce(rv.cancelada_pelo_usuario, 0) = 0"""):
+                recs.setdefault(r["id"], []).append({
+                    "data": r["data"], "valor": _r(r["valor"]), "juros": _r((r["juros_reais"] or 0) + (r["multa_reais"] or 0)),
+                    "pago": _r(r["valor_liquidado"]), "formas": [int(x) for x in (r["formas"] or "").split(",") if x != ""],
+                    "venda": f"{r['codigo_dispositivo']:03d}.{r['codigo_venda']}" if r["codigo_venda"] is not None else ""})
+    finally:
+        con.close()
+    out = []
+    for c in contas:
+        rs = sorted(recs.get(c["id"], []), key=lambda x: x["data"] or "")
+        principal = sum(x["valor"] for x in rs)
+        valor = _r(c["valor"])
+        situacao = "recebida" if rs and principal >= valor - 0.005 else ("parcial" if rs else "aberta")
+        venda = f"{c['codigo_dispositivo']:03d}.{c['codigo_venda']}" if c["codigo_venda"] is not None else ""
+        out.append({
+            "origem_id": c["id"], "cliente": (c["nome"] or c["nome_cliente"] or "").strip(), "cliente_doc": so_digitos(c["doc"]),
+            "cliente_fone": c["fone"] or "", "documento": c["documento"] or "", "venda": venda,
+            "competencia": (c["data_hora_finalizada"] or c["data_hora_criado"] or "")[:10] or None,
+            "vencimento": (c["vencimento"] or "")[:10] or None, "valor": valor,
+            "valor_recebido": _r(sum(x["pago"] for x in rs)), "principal_recebido": _r(principal),
+            "recebido_em": rs[-1]["data"] if situacao == "recebida" else None, "situacao": situacao, "recebimentos": rs,
+        })
+    return out

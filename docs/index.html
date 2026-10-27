@@ -219,7 +219,7 @@ input[type=file] { font-size: 14px }
    ===================================================================== */
 const CONFIG = {"supabaseUrl": "https://gdoklolbjrnnqcklgjtt.supabase.co", "supabaseAnon": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdkb2tsb2xianJubnFja2xnanR0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMwNTY5ODQsImV4cCI6MjEwODYzMjk4NH0.YoBdRMey8JKVYR7HWeTZsRVWxOFq1L94E7nq5qtQYd0"};
 const DEMO_RESUMO = /*DEMO*/null/*FIM*/;
-const VERSAO_PAINEL = "2.2";
+const VERSAO_PAINEL = "2.3";
 
 /* ---------------------------------------------------------------- utilidades */
 const $ = s => document.querySelector(s);
@@ -255,6 +255,7 @@ const ICONES = {
   plano: '<path d="M4 5h4M4 12h4M4 19h4M11 5h9M11 12h9M11 19h9"/>',
   config: '<circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.2l2-1.6-2-3.4-2.4 1a7 7 0 0 0-2-1.2L14 3h-4l-.5 2.6a7 7 0 0 0-2 1.2l-2.4-1-2 3.4 2 1.6A7 7 0 0 0 5 12c0 .4 0 .8.1 1.2l-2 1.6 2 3.4 2.4-1a7 7 0 0 0 2 1.2L10 21h4l.5-2.6a7 7 0 0 0 2-1.2l2.4 1 2-3.4-2-1.6c.1-.4.1-.8.1-1.2z"/>',
   bancos: '<path d="M3 10h18M5 10v8M9.5 10v8M14.5 10v8M19 10v8M3 21h18M12 3l9 5H3z"/>',
+  receber: '<rect x="3" y="5" width="18" height="15" rx="2"/><path d="M3 10h18M12 13v5M9.5 15.5L12 18l2.5-2.5"/>',
   backup: '<path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 17v3h16v-3"/>',
   admin: '<circle cx="9" cy="8" r="4"/><path d="M2 21c0-4 3-6 7-6s7 2 7 6M17 11l2 2 4-4"/>',
 };
@@ -524,12 +525,21 @@ function bancoDemo() {
     contas_financeiras: [{ id: uid(), empresa_id: E, nome: "Caixa dinheiro", tipo: "caixa", saldo_inicial: 300, data_saldo: addDias(primeiro, -1), ativa: true },
       { id: uid(), empresa_id: E, nome: "Santander", tipo: "banco", saldo_inicial: 6000, data_saldo: addDias(primeiro, -1), ativa: true }],
     vendas_dia: base.vendas_dia.map(x => ({ ...x, empresa_id: E })), pagamentos_dia: base.pagamentos_dia.map(x => ({ ...x, empresa_id: E })),
-    fornecedores: [], lancamentos: [], movimentos: [], pdv_ignorados: [], config_empresa: [] };
+    fornecedores: [], lancamentos: [], movimentos: [], pdv_ignorados: [], config_empresa: [],
+    contas_receber: (base.contas_receber || []).map(x => ({ ...x, empresa_id: E })) };
   const cod = c => T.plano_contas.find(x => x.codigo === c).id, [caixa, banco] = T.contas_financeiras.map(b => b.id);
   T.formas_pagamento = [[0, "Dinheiro", "1.1.7", caixa], [1, "Cartão de crédito", "1.1.2", banco, 3.19, 30], [2, "Crediário", "1.1.4", null], [3, "Pix", "1.1.1", banco, 0.99, 0],
     [4, "Cartão de débito", "1.1.2", banco, 1.39, 1], [5, "Forma 5", "1.1.8", banco], [6, "Forma 6", "1.1.8", banco], [7, "Forma 7", "1.1.8", banco]]
     .map(([codigo, nome, c, cf, taxa, prazo]) => ({ empresa_id: E, codigo, nome, conta_receita_id: cod(c), conta_financeira_id: cf, taxa_percentual: taxa || 0, prazo_dias: prazo || 0, a_prazo: codigo === 2 }));
   exemplosDemo(T, E, base);
+  { const h = hoje(), ex = (cliente, doc, comp, venc, valor, recs) => { const pr = recs.reduce((s, x) => s + x.valor, 0);
+      T.contas_receber.push({ empresa_id: E, origem_id: uid(), cliente, cliente_doc: "", cliente_fone: "(32) 99999-0000", documento: doc, venda: doc.split("-")[0],
+        competencia: comp, vencimento: venc, valor, valor_recebido: recs.reduce((s, x) => s + x.pago, 0), principal_recebido: pr,
+        recebido_em: pr >= valor ? recs[recs.length - 1].data : null, situacao: pr >= valor ? "recebida" : recs.length ? "parcial" : "aberta", recebimentos: recs }); };
+    ex("Exemplo - Marcos Silva", "001.08-1/1", addDias(h, -50), addDias(h, -20), 85, [{ data: addDias(h, -18), valor: 85, juros: 1.7, pago: 86.7, formas: [3], venda: "001.31" }]);
+    ex("Exemplo - Ana Paula", "001.12-1/2", addDias(h, -40), addDias(h, -10), 120, []);
+    ex("Exemplo - Ana Paula", "001.12-2/2", addDias(h, -40), addDias(h, 20), 120, []);
+    ex("Exemplo - Bar do Zé", "002.40-1/1", addDias(h, -15), addDias(h, 3), 240, [{ data: addDias(h, -2), valor: 100, juros: 0, pago: 100, formas: [0], venda: "002.71" }]); }
   T.config_empresa.push({ empresa_id: E, importar_compras: true, conta_compras_id: cod("3.2.1"), banco_compras_id: banco, compras_desde: inicioMes(addDias(primeiro, -40)) });
   const casa = (l, f) => Object.keys(f).every(k => l[k] === f[k]);
   return {
@@ -545,7 +555,7 @@ function bancoDemo() {
     async excluir(t, f) { if (t === "plano_contas" && T.lancamentos.some(l => l.conta_id === f.id)) throw new Error(traduzir("violates foreign key"));
       T[t] = T[t].filter(l => !casa(l, f)); return []; },
     async rpc(n, a) { if (n === "eh_admin") return true;
-      const TAB = ["plano_contas", "contas_financeiras", "fornecedores", "formas_pagamento", "config_empresa", "lancamentos", "movimentos", "pdv_ignorados", "vendas_dia", "pagamentos_dia"];
+      const TAB = ["plano_contas", "contas_financeiras", "fornecedores", "formas_pagamento", "config_empresa", "lancamentos", "movimentos", "pdv_ignorados", "vendas_dia", "pagamentos_dia", "contas_receber"];
       if (n === "exportar_backup") { const emp = T.empresas.find(e => e.id === a.empresa); const { chave_sync, ...semChave } = emp;
         const out = { formato: "aliber-financeiro-backup", versao: 1, gerado_em: new Date().toISOString(), empresa: semChave };
         TAB.forEach(t => out[t] = (T[t] || []).filter(l => l.empresa_id === a.empresa).map(l => ({ ...l }))); return out; }
@@ -615,10 +625,11 @@ function exemplosDemo(T, E, base) {
 /* ---------------------------------------------------------------- estado */
 const S = {
   db: null, admin: false, email: "", empresas: [], empresaId: null,
-  d: { plano: [], fornecedores: [], lancamentos: [], formas: [], vendas: [], pagamentos: [], bancos: [], movimentos: [], config: null },
+  d: { plano: [], fornecedores: [], lancamentos: [], formas: [], vendas: [], pagamentos: [], bancos: [], movimentos: [], config: null, receber: [] },
   periodo: lembrar("periodo", { preset: "mes" }),
   dre: Object.assign({ regime: "competencia", cmv: "compras", mensal: false, zeradas: false, fechados: [] }, lembrar("dre2", {})),
   contas: { status: "aberto", tipo: "", busca: "", fornecedor: "", conta: "", de: "", ate: "" },
+  receber: { status: "aberto", busca: "", cliente: "", de: "", ate: "" },
   banco: { sel: null },
   view: "resumo",
 };
@@ -673,13 +684,13 @@ async function depoisDeEntrar() {
 }
 async function carregarEmpresa() {
   const eq = { empresa_id: S.empresaId };
-  const [plano, fornecedores, lancamentos, formas, vendas, pagamentos, bancos, movimentos, config] = await Promise.all(
-    ["plano_contas", "fornecedores", "lancamentos", "formas_pagamento", "vendas_dia", "pagamentos_dia", "contas_financeiras", "movimentos", "config_empresa"].map(t => S.db.lista(t, eq)));
+  const [plano, fornecedores, lancamentos, formas, vendas, pagamentos, bancos, movimentos, config, receber] = await Promise.all(
+    ["plano_contas", "fornecedores", "lancamentos", "formas_pagamento", "vendas_dia", "pagamentos_dia", "contas_financeiras", "movimentos", "config_empresa", "contas_receber"].map(t => S.db.lista(t, eq)));
   S.d = { plano, fornecedores, lancamentos, formas: formas.sort((a, b) => a.codigo - b.codigo), vendas, pagamentos,
-    bancos: bancos.sort((a, b) => (a.tipo === "caixa" ? 0 : 1) - (b.tipo === "caixa" ? 0 : 1) || a.nome.localeCompare(b.nome)), movimentos, config: config[0] || null };
+    bancos: bancos.sort((a, b) => (a.tipo === "caixa" ? 0 : 1) - (b.tipo === "caixa" ? 0 : 1) || a.nome.localeCompare(b.nome)), movimentos, config: config[0] || null, receber };
   if (!S.d.bancos.some(b => b.id === S.banco.sel)) S.banco.sel = S.d.bancos[0]?.id || null;
 }
-const VIEWS = ["resumo", "dre", "contas", "bancos", "fornecedores", "plano", "config", "backup", "admin"];
+const VIEWS = ["resumo", "dre", "contas", "receber", "bancos", "fornecedores", "plano", "config", "backup", "admin"];
 function lerHash() { const h = location.hash.replace("#", ""); return VIEWS.includes(h) && (h !== "admin" || S.admin) ? h : "resumo"; }
 window.addEventListener("hashchange", () => { if (!S.db || !S.empresaId && !S.admin) return; const v = lerHash(); if (v !== S.view) { S.view = v; desenhar(); } });
 
@@ -723,7 +734,7 @@ function telaSemEmpresa() {
 
 /* ---------------------------------------------------------------- moldura */
 function desenhar() {
-  const itens = [["resumo", "Resumo"], ["dre", "DRE"], ["contas", "Contas a pagar"], ["bancos", "Caixa e bancos"], ["fornecedores", "Fornecedores"], ["plano", "Plano de contas"], ["config", "Configurações"], ["backup", "Backup"]];
+  const itens = [["resumo", "Resumo"], ["dre", "DRE"], ["contas", "Contas a pagar"], ["receber", "Contas a receber"], ["bancos", "Caixa e bancos"], ["fornecedores", "Fornecedores"], ["plano", "Plano de contas"], ["config", "Configurações"], ["backup", "Backup"]];
   if (S.admin) itens.push(["admin", "Administração"]);
   $("#app").innerHTML = `<div class="shell">
     <nav class="nav" aria-label="Menu">
@@ -743,8 +754,9 @@ function desenharConteudo() {
   const c = $("#conteudo"); if (!c) return;
   if (!S.empresaId && S.view !== "admin") { c.innerHTML = `<div class="painel vazio">Nenhuma loja cadastrada ainda. Cadastre a primeira em <a href="#admin">Administração</a>.</div>`; return; }
   const demo = S.db.modo === "demo" ? `<div class="demo"><b>Demonstração.</b> ${DEMO_RESUMO ? "As vendas são as reais do PDV+ da " + esc(empresa()?.nome) + "; fornecedores, contas, saldos e taxas são exemplos." : "Todos os números são fictícios."} O que você lançar aqui some ao recarregar a página.</div>` : "";
-  c.innerHTML = demo + ({ resumo: vResumo, dre: vDRE, contas: vContas, bancos: vBancos, fornecedores: vFornecedores, plano: vPlano, config: vConfig, backup: vBackup, admin: vAdmin }[S.view])();
+  c.innerHTML = demo + ({ resumo: vResumo, dre: vDRE, contas: vContas, receber: vReceber, bancos: vBancos, fornecedores: vFornecedores, plano: vPlano, config: vConfig, backup: vBackup, admin: vAdmin }[S.view])();
   if (S.view === "contas") desenharListaContas();
+  if (S.view === "receber") desenharListaReceber();
 }
 function cabecalho(titulo, sub, direita = "") {
   return `<div class="topo"><div><h1>${titulo}</h1>${sub ? `<div class="sub">${sub}</div>` : ""}</div>${direita ? `<div class="barra">${direita}</div>` : ""}</div>`; }
@@ -870,11 +882,10 @@ function tabelaDRETexto(sep) { return [...document.querySelectorAll("#tabela-dre
 /* ---------------------------------------------------------------- CONTAS A PAGAR */
 function vContas() {
   const C = S.contas;
-  return cabecalho("Contas a pagar", "Lance as despesas e as entradas avulsas, acompanhe o vencimento e dê baixa quando pagar ou receber.", `<button class="bt" data-acao="nova-entrada">+ Entrada a receber</button><button class="bt pri" data-acao="nova-conta">+ Nova conta</button>`) + `
+  return cabecalho("Contas a pagar", "Lance as despesas, acompanhe o vencimento e dê baixa quando pagar.", `<button class="bt pri" data-acao="nova-conta">+ Nova conta</button>`) + `
     <div class="kpis" id="totais-contas"></div>
     <div class="barra">
       <div class="seg" role="group" aria-label="Situação">${[["aberto", "Em aberto"], ["vencidas", "Vencidas"], ["pagas", "Pagas"], ["todas", "Todas"]].map(([k, t]) => `<button data-acao="contas-status" data-v="${k}" class="${C.status === k ? "on" : ""}">${t}</button>`).join("")}</div>
-      <div class="seg" role="group" aria-label="Tipo">${[["", "Tudo"], ["saida", "Saídas"], ["entrada", "Entradas"]].map(([k, t]) => `<button data-acao="contas-tipo" data-v="${k}" class="${C.tipo === k ? "on" : ""}">${t}</button>`).join("")}</div>
       <input type="search" id="c-busca" placeholder="Buscar descrição, fornecedor ou documento" value="${esc(C.busca)}" data-acao-input="contas-busca" style="flex:1 1 220px;width:auto">
     </div>
     <div class="barra">
@@ -907,7 +918,7 @@ function desenharListaContas() {
   if (tot) tot.innerHTML = `<div class="kpi"><span>A pagar em aberto</span><b>${brl(soma(abertas))}</b><small>${abertas.length} conta(s)</small></div>
     <div class="kpi"><span>Vencidas</span><b class="${abertas.some(l => l.vencimento < h) ? "neg" : ""}">${brl(soma(abertas.filter(l => l.vencimento < h)))}</b><small>${abertas.filter(l => l.vencimento < h).length} conta(s)</small></div>
     <div class="kpi"><span>Pago neste mês</span><b>${brl(mes.reduce((s, l) => s + +(l.valor_pago ?? l.valor), 0))}</b><small>${mes.length} conta(s)</small></div>
-    <div class="kpi"><span>Entradas a receber</span><b>${brl(soma(aReceber))}</b><small>${aReceber.length} lançamento(s)</small></div>`;
+    <div class="kpi"><span>Vencem em 7 dias</span><b>${brl(soma(abertas.filter(l => l.vencimento >= h && l.vencimento <= addDias(h, 7))))}</b><small>${abertas.filter(l => l.vencimento >= h && l.vencimento <= addDias(h, 7)).length} conta(s)</small></div>`;
   const el = $("#lista-contas"); if (!el) return;
   if (!lista.length) { el.innerHTML = `<div class="vazio">Nenhum lançamento com esses filtros. ${S.d.lancamentos.length ? "" : '<br><button class="bt pri" data-acao="nova-conta" style="margin-top:10px">Lançar a primeira conta</button>'}</div>`; return; }
   el.innerHTML = `<table><thead><tr><th>Vencimento</th><th>Descrição</th><th>Conta</th><th class="v">Valor</th><th>Situação</th><th></th></tr></thead><tbody>${lista.map(l => { const s = situacao(l), c = contaPorId(l.conta_id), f = fornPorId(l.fornecedor_id), ent = ehEntrada(l), cf = bancoPorId(l.conta_financeira_id);
@@ -983,6 +994,87 @@ function formPagar(l) {
     const v = lerNum($("#f-pg-valor").value); if (!(v >= 0)) throw new Error("Valor inválido.");
     const dados = { pago_em: $("#f-pg-data").value, valor_pago: v, conta_financeira_id: $("#f-pg-cf").value || null }; await S.db.atualizar("lancamentos", { id: l.id }, dados); Object.assign(l, dados);
     toast(ent ? "Recebimento registrado." : "Pagamento registrado."); }, ent ? "Confirmar recebimento" : "Confirmar pagamento");
+}
+
+/* ---------------------------------------------------------------- CONTAS A RECEBER (só leitura: vêm do crediário do PDV+) */
+function situacaoReceber(c) { const h = hoje();
+  if (c.situacao === "recebida") return { cls: "ok", txt: "Recebida " + (c.recebido_em ? dataBR(c.recebido_em).slice(0, 5) : "") };
+  const atras = c.vencimento && c.vencimento < h, parcial = c.situacao === "parcial";
+  if (atras) return { cls: "bad", txt: parcial ? "Parcial · atrasada" : "Atrasada" };
+  if (parcial) return { cls: "warn", txt: "Parcial" };
+  if (c.vencimento === h) return { cls: "warn", txt: "Vence hoje" };
+  if (c.vencimento && c.vencimento <= addDias(h, 7)) return { cls: "warn", txt: "Vence em " + Math.round((paraData(c.vencimento) - paraData(h)) / 864e5) + "d" };
+  return { cls: "neu", txt: "A receber" }; }
+const saldoReceber = c => Math.max(0, +c.valor - +(c.principal_recebido || 0));
+const contaDoCrediario = () => contaPorId((S.d.formas.find(f => ehAPrazo(f)) || {}).conta_receita_id);
+function vReceber() {
+  const R = S.d.receber, C = S.receber;
+  const clientes = [...new Set(R.map(c => c.cliente).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  return cabecalho("Contas a receber", "Parcelas do crediário lançadas no PDV+. Para incluir ou dar baixa, use o PDV+: o painel atualiza na próxima sincronização.") + `
+    <div class="kpis" id="totais-receber"></div>
+    <div class="barra">
+      <div class="seg" role="group" aria-label="Situação">${[["aberto", "Em aberto"], ["vencidas", "Atrasadas"], ["recebidas", "Recebidas"], ["todas", "Todas"]].map(([k, t]) => `<button data-acao="receber-status" data-v="${k}" class="${C.status === k ? "on" : ""}">${t}</button>`).join("")}</div>
+      <input type="search" id="r-busca" placeholder="Buscar cliente, documento ou venda" value="${esc(C.busca)}" data-acao-input="receber-busca" style="flex:1 1 220px;width:auto">
+    </div>
+    <div class="barra">
+      <select id="r-cliente" data-acao-change="receber-filtro" data-k="cliente" style="flex:0 1 240px;width:auto"><option value="">Todos os clientes</option>${clientes.map(n => `<option value="${esc(n)}" ${C.cliente === n ? "selected" : ""}>${esc(n)}</option>`).join("")}</select>
+      <span class="nota">Vencimento de</span><input type="date" id="r-de" value="${C.de}" data-acao-change="receber-filtro" data-k="de" style="width:150px"><span class="nota">até</span><input type="date" id="r-ate" value="${C.ate}" data-acao-change="receber-filtro" data-k="ate" style="width:150px">${C.de || C.ate ? `<button class="bt link" data-acao="receber-limpar-datas">limpar datas</button>` : ""}</div>
+    <div class="tabela" id="lista-receber"></div>`;
+}
+function filtrarReceber() {
+  const C = S.receber, h = hoje(), b = C.busca.trim().toLowerCase();
+  return S.d.receber.filter(c => {
+    const rec = c.situacao === "recebida";
+    if (C.status === "aberto" && rec) return false;
+    if (C.status === "vencidas" && (rec || !c.vencimento || c.vencimento >= h)) return false;
+    if (C.status === "recebidas" && !rec) return false;
+    if (C.cliente && c.cliente !== C.cliente) return false;
+    if (C.de && (c.vencimento || "") < C.de) return false;
+    if (C.ate && (c.vencimento || "9999") > C.ate) return false;
+    if (b && !`${c.cliente} ${c.cliente_doc} ${c.documento} ${c.venda}`.toLowerCase().includes(b)) return false;
+    return true;
+  }).sort((a, b) => C.status === "recebidas" ? (b.recebido_em || "").localeCompare(a.recebido_em || "") : (a.vencimento || "").localeCompare(b.vencimento || ""));
+}
+function desenharListaReceber() {
+  const lista = filtrarReceber(), h = hoje(), R = S.d.receber;
+  const abertas = R.filter(c => c.situacao !== "recebida"), atras = abertas.filter(c => c.vencimento && c.vencimento < h);
+  const somaSaldo = a => a.reduce((s, c) => s + saldoReceber(c), 0);
+  const recMes = R.flatMap(c => c.recebimentos || []).filter(x => (x.data || "").slice(0, 7) === h.slice(0, 7));
+  const tot = $("#totais-receber");
+  if (tot) tot.innerHTML = `<div class="kpi"><span>A receber em aberto</span><b>${brl(somaSaldo(abertas))}</b><small>${abertas.length} parcela(s)</small></div>
+    <div class="kpi"><span>Atrasadas</span><b class="${atras.length ? "neg" : ""}">${brl(somaSaldo(atras))}</b><small>${atras.length} parcela(s)</small></div>
+    <div class="kpi"><span>Recebido neste mês</span><b>${brl(recMes.reduce((s, x) => s + +(x.pago || 0), 0))}</b><small>${recMes.length} recebimento(s)</small></div>
+    <div class="kpi"><span>Nesta lista</span><b>${brl(lista.reduce((s, c) => s + +c.valor, 0))}</b><small>${lista.length} parcela(s)</small></div>`;
+  const el = $("#lista-receber"); if (!el) return;
+  if (!lista.length) { el.innerHTML = `<div class="vazio">${R.length ? "Nenhuma conta a receber com esses filtros." : "Nenhuma venda no crediário ainda. As parcelas aparecem aqui depois da sincronização com o PDV+ (programa 1.4 ou mais novo)."}</div>`; return; }
+  const ct = contaDoCrediario();
+  el.innerHTML = `<table><thead><tr><th>Vencimento</th><th>Descrição</th><th>Conta</th><th class="v">Valor</th><th>Situação</th><th></th></tr></thead><tbody>${lista.map(c => { const s = situacaoReceber(c);
+    return `<tr><td class="num">${dataBR(c.vencimento)}</td>
+      <td><span class="pill pdv" title="Veio do crediário do PDV+">PDV+</span> ${esc(c.cliente || "Cliente não informado")}<span class="sec">${esc(["Venda " + c.venda, c.documento && "doc. " + c.documento].filter(x => x && x !== "Venda ").join(" · ")) || "&nbsp;"}</span></td>
+      <td>${ct ? `<span class="cod">${esc(ct.codigo)}</span> ${esc(ct.nome)}` : "Crediário"}<span class="sec">competência ${c.competencia ? mesCurto(c.competencia) : "–"}</span></td>
+      <td class="v pos">${brl(c.valor)}${+c.valor_recebido && (c.situacao !== "recebida" || Math.abs(+c.valor_recebido - +c.valor) > .005) ? `<span class="sec">recebido ${brl(c.valor_recebido)}</span>` : ""}</td>
+      <td><span class="pill ${s.cls}">${s.txt}</span></td>
+      <td class="acoes"><button class="bt mini" data-acao="detalhe-receber" data-id="${esc(c.origem_id)}">Detalhes</button></td></tr>`; }).join("")}</tbody></table>`;
+}
+function detalheReceber(c) {
+  const nomeForma = cod => S.d.formas.find(f => +f.codigo === +cod)?.nome || "Forma " + cod;
+  const s = situacaoReceber(c), rs = c.recebimentos || [];
+  abrirModal("Conta a receber", `
+    <div class="tabela"><table><tbody>
+      <tr><td>Cliente</td><td><b>${esc(c.cliente || "-")}</b>${c.cliente_doc ? `<span class="sec">CPF/CNPJ ${esc(c.cliente_doc)}</span>` : ""}</td></tr>
+      ${c.cliente_fone ? `<tr><td>Telefone</td><td>${esc(c.cliente_fone)} <button type="button" class="bt mini" data-acao="copiar" data-texto="${esc(c.cliente_fone)}">Copiar</button></td></tr>` : ""}
+      <tr><td>Venda / documento</td><td>${esc(c.venda || "-")} · ${esc(c.documento || "-")}</td></tr>
+      <tr><td>Data da venda</td><td>${dataBR(c.competencia) || "-"}</td></tr>
+      <tr><td>Vencimento</td><td>${dataBR(c.vencimento) || "-"}</td></tr>
+      <tr><td>Valor</td><td><b>${brl(c.valor)}</b> · em aberto ${brl(saldoReceber(c))}</td></tr>
+      <tr><td>Situação</td><td><span class="pill ${s.cls}">${s.txt}</span></td></tr>
+    </tbody></table></div>
+    <h3 style="font-size:15px;margin:4px 0 0">Recebimentos</h3>
+    ${rs.length ? `<div class="tabela"><table><thead><tr><th>Data</th><th>Forma</th><th class="v">Parcela</th><th class="v">Juros/multa</th><th class="v">Pago</th></tr></thead><tbody>
+      ${rs.map(x => `<tr><td class="num">${dataBR(x.data)}</td><td>${esc((x.formas || []).map(nomeForma).join(" + ") || "-")}${x.venda ? `<span class="sec">venda ${esc(x.venda)}</span>` : ""}</td><td class="v">${brl(x.valor)}</td><td class="v">${+x.juros ? brl(x.juros) : "–"}</td><td class="v">${brl(x.pago)}</td></tr>`).join("")}</tbody></table></div>`
+      : `<p class="nota" style="margin:0">Nenhum recebimento ainda.</p>`}
+    <p class="nota" style="margin:0">Esta conta vem do PDV+ e não pode ser alterada aqui. Para receber, use o recebimento de crediário no PDV+.</p>`, async () => {}, "Fechar");
+  const bt = $("#modal button[type=submit]"); bt.className = "bt"; $("#modal .acoes-form button[data-acao=fechar]")?.remove();
 }
 
 /* ---------------------------------------------------------------- FORNECEDORES */
@@ -1359,7 +1451,6 @@ document.addEventListener("click", async ev => {
     if (a === "imprimir") return window.print();
     if (a === "copiar") return copiar(el.dataset.texto);
     if (a === "nova-conta") return formConta(null, false);
-    if (a === "nova-entrada") return formConta(null, true);
     if (a === "editar-conta") return formConta(l);
     if (a === "pagar") return formPagar(l);
     if (a === "estornar") { const d = { pago_em: null, valor_pago: null }; await S.db.atualizar("lancamentos", { id }, d); Object.assign(l, d); toast("Baixa desfeita."); return desenharConteudo(); }
@@ -1376,6 +1467,9 @@ document.addEventListener("click", async ev => {
     if (a === "contas-status") { S.contas.status = el.dataset.v; document.querySelectorAll('[data-acao="contas-status"]').forEach(b => b.classList.toggle("on", b === el)); return desenharListaContas(); }
     if (a === "contas-tipo") { S.contas.tipo = el.dataset.v; document.querySelectorAll('[data-acao="contas-tipo"]').forEach(b => b.classList.toggle("on", b === el)); return desenharListaContas(); }
     if (a === "contas-limpar-datas") { S.contas.de = S.contas.ate = ""; return desenharConteudo(); }
+    if (a === "receber-status") { S.receber.status = el.dataset.v; document.querySelectorAll('[data-acao="receber-status"]').forEach(b => b.classList.toggle("on", b === el)); return desenharListaReceber(); }
+    if (a === "receber-limpar-datas") { S.receber.de = S.receber.ate = ""; return desenharConteudo(); }
+    if (a === "detalhe-receber") return detalheReceber(S.d.receber.find(c => c.origem_id === id));
     if (a === "novo-forn") return formFornecedor(null);
     if (a === "editar-forn") return formFornecedor(fornPorId(id));
     if (a === "conta-do-forn") { const f = fornPorId(id); formConta(null, false); $("#f-forn").value = f.id; if (f.conta_padrao_id && $(`#f-conta option[value="${f.conta_padrao_id}"]`)) $("#f-conta").value = f.conta_padrao_id; if (!$("#f-desc").value) $("#f-desc").value = f.nome; return; }
@@ -1416,6 +1510,7 @@ document.addEventListener("change", async ev => {
   if (a === "datas") { definirPeriodo("livre", $("#p-ini").value, $("#p-fim").value); return desenharConteudo(); }
   if (a === "dre-check") { S.dre[el.dataset.k] = el.checked; guardar("dre2", S.dre); return desenharConteudo(); }
   if (a === "contas-filtro") { S.contas[el.dataset.k] = el.value; return el.type === "date" ? desenharConteudo() : desenharListaContas(); }
+  if (a === "receber-filtro") { S.receber[el.dataset.k] = el.value; return el.type === "date" ? desenharConteudo() : desenharListaReceber(); }
   if (a === "empresa") return trocarEmpresa(el.value);
   if (a === "forn-conta") { const f = fornPorId(el.value); if (f?.conta_padrao_id && $(`#f-conta option[value="${f.conta_padrao_id}"]`)) $("#f-conta").value = f.conta_padrao_id; if (f && !$("#f-desc").value) $("#f-desc").value = f.nome; }
   if (a === "ler-planilha") { if (el.files[0]) lerArquivoPlano(el.files[0]); }
@@ -1424,6 +1519,7 @@ document.addEventListener("change", async ev => {
 });
 document.addEventListener("input", ev => { const a = ev.target.dataset.acaoInput;
   if (a === "contas-busca") { S.contas.busca = ev.target.value; desenharListaContas(); }
+  if (a === "receber-busca") { S.receber.busca = ev.target.value; desenharListaReceber(); }
   if (a === "acerto-dif") atualizarAcerto(); });
 document.addEventListener("keydown", ev => { if (ev.key === "Escape" && $("#modal")) fecharModal(); });
 document.addEventListener("submit", async ev => {

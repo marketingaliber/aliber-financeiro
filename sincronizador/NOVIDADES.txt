@@ -1,8 +1,6 @@
-Versão 1.3
-- Backup automático: uma vez por dia o programa baixa todos os dados da loja que estão na nuvem
-  (plano de contas, contas, fornecedores, caixa e bancos, configurações e vendas) e guarda compactado
-  em %APPDATA%\Aliber Financeiro\backups, mantendo os últimos 30 dias
-- Cópia extra opcional do backup em outra pasta (pendrive, Google Drive, OneDrive): Configurações
-- Botão "Backups" na janela abre a pasta dos backups
-- No painel: página Backup para baixar e restaurar (o painel baixa uma cópia antes de restaurar)
-- Trava de segurança: uma sincronização sem nenhuma nota de entrada não apaga mais as contas importadas
+Versão 1.4
+- Contas a receber: as parcelas do crediário do PDV+ (cliente, venda, vencimento, valor) e os recebimentos
+  (data, forma de pagamento, juros e multa) passam a ir para o painel a cada sincronização
+- No painel: nova página Contas a receber, com os mesmos filtros e o mesmo formato de Contas a pagar.
+  As contas a receber só vêm do PDV+: não dá para incluir, alterar ou excluir pelo painel
+- Contas a pagar: removida a opção de lançar entrada a receber manual

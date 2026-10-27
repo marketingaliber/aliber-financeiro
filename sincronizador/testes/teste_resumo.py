@@ -92,6 +92,44 @@ def criar_compras(caminho):
     c.close()
 
 
+def testar_receber(pasta, erros):
+    db = os.path.join(pasta, "receber.db")
+    c = sqlite3.connect(db)
+    c.executescript("""
+    create table cliente (id_cliente text primary key, nome text, cpf text, cnpj text, fone text);
+    create table venda (id_venda text primary key, codigo_dispositivo int, codigo_venda int, data_hora_finalizada text,
+      data_hora_criado text, cancelada_pelo_usuario int, nome_cliente text);
+    create table venda_forma_pagamento (id_venda_forma_pagamento text primary key, id_venda text, data_hora_deletado text,
+      pagamento_cancelado_pelo_usuario int, forma_pagamento int, valor real);
+    create table conta_pagar_receber (id_conta_pagar_receber text primary key, data_hora_criado text, data_hora_deletado text,
+      tipo_conta int, id_cliente text, id_venda text, positiva_negativa int, valor real, vencimento text, documento text);
+    create table recebimento_pagamento (id_recebimento_pagamento text primary key, data_hora_deletado text, id_venda text,
+      id_conta_pagar_receber text, valor real, juros_reais real, multa_reais real, valor_liquidado real, data_liquidacao text);
+    insert into cliente values ('c1','Juliane','123.456.789-00',null,'(32) 99999-0000');
+    insert into venda values ('v1',1,17,'2026-10-11T21:00:00',null,0,null), ('v2',1,18,'2026-10-12T21:00:00',null,1,null),
+                             ('r1',1,40,'2026-11-10T10:00:00',null,0,null), ('r2',1,41,'2026-11-12T10:00:00',null,0,null);
+    insert into venda_forma_pagamento values ('p1','r1',null,0,3,50), ('p2','r2',null,0,0,52);
+    insert into conta_pagar_receber values
+      ('a','2026-10-11',null,0,'c1','v1',1,100,'2026-11-11T00:00:00.000','001.17-1/2'),
+      ('b','2026-10-11',null,0,'c1','v1',1,100,'2026-12-11T00:00:00.000','001.17-2/2'),
+      ('x','2026-10-12','2026-10-12',0,'c1','v2',1,40,'2026-11-12T00:00:00.000','001.18-1/1'),
+      ('y','2026-10-12',null,0,'c1','v2',1,40,'2026-11-12T00:00:00.000','001.18-1/1');
+    insert into recebimento_pagamento values ('rp1',null,'r1','a',50,0,0,50,'2026-11-10'), ('rp2',null,'r2','a',50,2,0,52,'2026-11-12');
+    """)
+    c.commit()
+    c.close()
+    cr = {x["origem_id"]: x for x in R.contas_receber(db)}
+    if set(cr) != {"a", "b"}:
+        erros.append("contas a receber: esperado a e b (apagada e venda cancelada fora), veio " + str(sorted(cr)))
+        return
+    if cr["a"]["situacao"] != "recebida" or cr["a"]["recebido_em"] != "2026-11-12" or abs(cr["a"]["valor_recebido"] - 102) > .001:
+        erros.append("parcela recebida em duas vezes com juros: " + str(cr["a"]))
+    if cr["a"]["recebimentos"][0]["formas"] != [3]:
+        erros.append("forma do recebimento (Pix) não veio")
+    if cr["b"]["situacao"] != "aberta" or cr["b"]["vencimento"] != "2026-12-11" or cr["b"]["cliente_doc"] != "12345678900":
+        erros.append("parcela em aberto errada: " + str(cr["b"]))
+
+
 def rodar():
     erros = []
 
@@ -146,6 +184,7 @@ def rodar():
         confere("entrada manual pelo total dos itens", por["e3#1"]["valor"], 125)
         if any(k.startswith(("e4", "e5")) for k in por):
             erros.append("entrada apagada ou interna virou conta a pagar")
+        testar_receber(pasta, erros)
     for e in erros:
         print("FALHOU:", e)
     print("OK" if not erros else f"{len(erros)} falha(s)")
