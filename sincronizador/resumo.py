@@ -137,6 +137,8 @@ def montar(db_path, data_ini, data_fim, versao=""):
         "vendas_dia": vendas_dia, "pagamentos_dia": pagamentos_dia,
         "fornecedores": fornecedores, "compras": compras,   # sempre a lista completa (não só o período)
         "contas_receber": contas_receber(db_path),           # crediário: lista completa
+        "recebiveis_ini": max(data_ini, date.fromordinal(date.today().toordinal() - DIAS_RECEBIVEIS)).isoformat(),
+        "recebiveis": recebiveis(db_path, max(data_ini, date.fromordinal(date.today().toordinal() - DIAS_RECEBIVEIS)), data_fim),
     }
 
 
@@ -337,5 +339,61 @@ def contas_receber(db_path):
             "vencimento": (c["vencimento"] or "")[:10] or None, "valor": valor,
             "valor_recebido": _r(sum(x["pago"] for x in rs)), "principal_recebido": _r(principal),
             "recebido_em": rs[-1]["data"] if situacao == "recebida" else None, "situacao": situacao, "recebimentos": rs,
+        })
+    return out
+
+
+# ---------------------------------------------------------------- recebíveis das vendas (cada pagamento)
+DIAS_RECEBIVEIS = 400       # histórico máximo de recebíveis enviado para a nuvem
+
+
+def recebiveis(db_path, data_ini, data_fim):
+    """Cada pagamento de venda do período (Pix, cartão, dinheiro...), com os dados da maquininha.
+
+    Recebimento de crediário (venda sem itens) fica de fora: ele aparece dentro da parcela do crediário.
+    O troco é descontado do dinheiro. O painel calcula taxa, prazo e situação pelas formas de pagamento."""
+    ini = data_ini.isoformat()
+    fim_excl = date.fromordinal(data_fim.toordinal() + 1).isoformat()
+    con = conectar(db_path)
+    try:
+        tabelas = {r[0] for r in con.execute("select name from sqlite_master where type='table'")}
+        tem_t = "venda_forma_pagamento_transacao" in tabelas
+        linhas = con.execute(
+            f"""select p.id_venda_forma_pagamento id, p.forma_pagamento forma, coalesce(p.valor,0) valor, p.bandeira_cartao bandeira,
+                       v.id_venda, v.data_hora_finalizada quando, v.codigo_dispositivo, v.codigo_venda, coalesce(v.tipo_venda,1) tipo,
+                       coalesce(v.valor_troco,0) troco, v.nome_cliente,
+                       {"t.nsu_transacao nsu, t.codigo_autorizacao aut, t.parcela parcelas, t.tipo_parcelamento tparc"
+                        if tem_t else "null nsu, null aut, null parcelas, null tparc"}
+                  from venda_forma_pagamento p
+                  join venda v on v.id_venda = p.id_venda
+                  {"left join venda_forma_pagamento_transacao t on t.id_venda_forma_pagamento = p.id_venda_forma_pagamento and t.data_hora_deletado is null" if tem_t else ""}
+                 where p.data_hora_deletado is null and coalesce(p.pagamento_cancelado_pelo_usuario,0)=0
+                   and v.data_hora_deletado is null and coalesce(v.cancelada_pelo_usuario,0)=0
+                   and v.data_hora_finalizada >= ? and v.data_hora_finalizada < ?
+                   and coalesce(v.valor_total_liquido_itens,0) > 0
+                   and exists (select 1 from venda_item i where i.id_venda=v.id_venda and i.data_hora_deletado is null and coalesce(i.cancelado,0)=0)
+                 order by v.data_hora_finalizada""", (ini, fim_excl)).fetchall()
+    finally:
+        con.close()
+    troco = {}
+    out, vistos = [], set()
+    for p in linhas:
+        if p["id"] in vistos:          # mais de uma transação para o mesmo pagamento: usa a primeira
+            continue
+        vistos.add(p["id"])
+        valor = float(p["valor"])
+        if int(p["forma"]) == 0:
+            resta = troco.setdefault(p["id_venda"], float(p["troco"]))
+            tira = min(resta, valor)
+            valor -= tira
+            troco[p["id_venda"]] = resta - tira
+        if valor <= 0:
+            continue
+        out.append({
+            "origem_id": p["id"], "data": p["quando"][:10], "hora": p["quando"][11:16], "forma": int(p["forma"]),
+            "valor": _r(valor), "venda": f"{p['codigo_dispositivo']:03d}.{p['codigo_venda']}" if p["codigo_venda"] is not None else "",
+            "tipo_venda": int(p["tipo"]), "cliente": (p["nome_cliente"] or "").strip(),
+            "bandeira": p["bandeira"], "nsu": p["nsu"] or "", "autorizacao": p["aut"] or "",
+            "parcelas": max(1, int(p["parcelas"] or 1)),
         })
     return out

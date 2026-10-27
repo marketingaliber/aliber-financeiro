@@ -15,38 +15,39 @@ ESQUEMA = """
 create table venda (id_venda text primary key, data_hora_criado text, data_hora_deletado text,
   data_hora_finalizada text, cancelada_pelo_usuario int, tipo_venda int, valor_total real,
   valor_total_liquido_itens real, delivery_taxa_valor real, valor_total_taxas_servico real,
-  valor_total_acrescimos real, desconto_reais real, valor_troco real);
+  valor_total_acrescimos real, desconto_reais real, valor_troco real,
+  codigo_dispositivo int default 1, codigo_venda int default 1, nome_cliente text);
 create table venda_item (id_venda_item text primary key, id_venda text, data_hora_deletado text,
   cancelado int, preco_custo_unitario real, qtd real);
 create table venda_forma_pagamento (id_venda_forma_pagamento text primary key, id_venda text,
-  data_hora_deletado text, pagamento_cancelado_pelo_usuario int, forma_pagamento int, valor real);
+  data_hora_deletado text, pagamento_cancelado_pelo_usuario int, forma_pagamento int, valor real, bandeira_cartao int);
 """
 
 
 def criar_banco(caminho):
     c = sqlite3.connect(caminho)
     c.executescript(ESQUEMA)
-    V = "insert into venda values (?,?,?,?,?,?,?,?,?,?,?,?,?)"
+    V = "insert into venda (id_venda, data_hora_criado, data_hora_deletado, data_hora_finalizada, cancelada_pelo_usuario, tipo_venda, valor_total, valor_total_liquido_itens, delivery_taxa_valor, valor_total_taxas_servico, valor_total_acrescimos, desconto_reais, valor_troco) values (?,?,?,?,?,?,?,?,?,?,?,?,?)"
     # 1) balcão, R$ 50 pago com R$ 100 em dinheiro (troco 50)
     c.execute(V, ("v1", "2026-10-01T19:00", None, "2026-10-01T19:05", 0, 1, 50, 50, 0, 0, 0, 0, 50))
     c.execute("insert into venda_item values ('i1','v1',null,0,20,1)")
-    c.execute("insert into venda_forma_pagamento values ('p1','v1',null,0,0,100)")
+    c.execute("insert into venda_forma_pagamento values ('p1','v1',null,0,0,100,null)")
     # 2) delivery R$ 72 + 5 de entrega - 2 de desconto = 75, metade crédito metade Pix
     c.execute(V, ("v2", "2026-10-01T20:00", None, "2026-10-01T20:10", 0, 2, 75, 72, 5, 0, 0, 2, 0))
     c.execute("insert into venda_item values ('i2','v2',null,0,30,2)")
     c.execute("insert into venda_item values ('i2x','v2',null,1,99,1)")      # item cancelado: ignora
-    c.execute("insert into venda_forma_pagamento values ('p2','v2',null,0,1,40)")
-    c.execute("insert into venda_forma_pagamento values ('p3','v2',null,0,3,35)")
+    c.execute("insert into venda_forma_pagamento values ('p2','v2',null,0,1,40,2)")
+    c.execute("insert into venda_forma_pagamento values ('p3','v2',null,0,3,35,null)")
     # 3) cancelada (vem apagada no banco)
     c.execute(V, ("v3", "2026-10-02T19:00", "2026-10-02T19:30", None, 1, 3, 40, 40, 0, 0, 0, 0, 0))
     c.execute("insert into venda_item values ('i3','v3',null,0,10,1)")
     # 4) mesa no crediário
     c.execute(V, ("v4", "2026-10-02T21:00", None, "2026-10-02T22:00", 0, 3, 60, 60, 0, 0, 0, 0, 0))
     c.execute("insert into venda_item values ('i4','v4',null,0,25,1)")
-    c.execute("insert into venda_forma_pagamento values ('p4','v4',null,0,2,60)")
+    c.execute("insert into venda_forma_pagamento values ('p4','v4',null,0,2,60,null)")
     # 5) recebimento do crediário (sem itens) pago em Pix
     c.execute(V, ("v5", "2026-10-03T10:00", None, "2026-10-03T10:01", 0, 1, 60, 0, 0, 0, 0, 0, 0))
-    c.execute("insert into venda_forma_pagamento values ('p5','v5',null,0,3,60)")
+    c.execute("insert into venda_forma_pagamento values ('p5','v5',null,0,3,60,null)")
     # 6) em aberto (não finalizada): ignora
     c.execute(V, ("v6", "2026-10-03T11:00", None, None, 0, 3, 99, 99, 0, 0, 0, 0, 0))
     c.commit()
@@ -161,6 +162,13 @@ def rodar():
         t = R.totais(r)
         confere("vendas", t["vendas"], 3)
         confere("faturamento", t["faturamento"], 185)
+        rc = {x["origem_id"]: x for x in r["recebiveis"]}
+        confere("recebível dinheiro sem troco", rc.get("p1", {}).get("valor"), 50)
+        confere("recebível crédito", rc.get("p2", {}).get("valor"), 40)
+        if "p5" in rc:
+            erros.append("recebimento de crediário entrou como recebível de venda")
+        if set(rc) != {"p1", "p2", "p3", "p4"}:
+            erros.append("recebíveis esperados p1..p4, veio " + str(sorted(rc)))
         if r["compras"] or r["fornecedores"]:
             erros.append("banco sem tabelas de entrada deveria vir sem compras")
         criar_compras(db)

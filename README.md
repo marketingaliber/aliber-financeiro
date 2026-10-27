@@ -44,6 +44,11 @@ DRE: Receita − Custos variáveis = **Margem de contribuição** − Despesas f
 - Só entram entradas a partir da data "Importar notas com entrada a partir de" (padrão: início do mês em que a loja começou a usar).
 - Ao atualizar o banco na nuvem, rode o `supabase/banco.sql` de novo no SQL Editor (pode rodar quantas vezes quiser).
 
+## Recebíveis das vendas (versão 1.5)
+- Cada pagamento de venda (tabela `recebiveis`, só a sincronização grava) com NSU, autorização e parcelas.
+- O painel junta com o crediário em Contas a receber. Previsão = data da venda + prazo da forma de pagamento
+  (cartão parcelado: uma linha por parcela, 30 dias entre elas se o prazo for 0). Líquido = valor − taxa da forma.
+
 ## Contas a receber (versão 1.4)
 - Vêm só do crediário do PDV+ (parcelas em `conta_pagar_receber` e recebimentos em `recebimento_pagamento`).
   A cada sincronização a lista completa substitui a anterior. No painel é só consulta (o banco recusa incluir,

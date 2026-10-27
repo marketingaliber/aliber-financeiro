@@ -1,6 +1,7 @@
-Versão 1.4
-- Contas a receber: as parcelas do crediário do PDV+ (cliente, venda, vencimento, valor) e os recebimentos
-  (data, forma de pagamento, juros e multa) passam a ir para o painel a cada sincronização
-- No painel: nova página Contas a receber, com os mesmos filtros e o mesmo formato de Contas a pagar.
-  As contas a receber só vêm do PDV+: não dá para incluir, alterar ou excluir pelo painel
-- Contas a pagar: removida a opção de lançar entrada a receber manual
+Versão 1.5
+- Recebíveis de todas as vendas: cada pagamento (Pix, cartão de crédito e débito, dinheiro...) vai para o painel
+  com venda, data e hora, cliente, NSU, autorização e número de parcelas da maquininha (últimos 400 dias)
+- No painel, Contas a receber mostra tudo o que a loja tem para receber: crediário e vendas, com previsão
+  de quando o cartão cai (pelo prazo e taxa de cada forma de pagamento) e valor líquido
+- Contas a receber e Contas a pagar: filtro de datas igual ao do PDV+ (Hoje, 7D, 1M, 3M, 6M, 1A, Próx. 30D
+  ou datas livres), escolha da data usada no filtro, ordenação clicando no título da coluna e detalhes de cada linha

@@ -16,7 +16,7 @@ fonte = open(os.path.join(AQUI, "painel.html"), encoding="utf-8").read()
 if len(sys.argv) > 1 and sys.argv[1] == "--demo":
     resumo = json.load(open(sys.argv[2], encoding="utf-8"))
     demo = {"empresa": sys.argv[3], "vendas_dia": resumo["vendas_dia"], "pagamentos_dia": resumo["pagamentos_dia"],
-            "contas_receber": resumo.get("contas_receber", [])}
+            "contas_receber": resumo.get("contas_receber", []), "recebiveis": resumo.get("recebiveis", [])}
     pagina = fonte.replace("/*DEMO*/null/*FIM*/", "/*DEMO*/" + json.dumps(demo, ensure_ascii=False, separators=(",", ":")) + "/*FIM*/")
     open(sys.argv[4], "w", encoding="utf-8").write(pagina)
     print("demo:", sys.argv[4])

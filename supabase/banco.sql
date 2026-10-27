@@ -7,6 +7,7 @@
 -- Versão 1.2: importa fornecedores e contas a pagar das entradas de nota do PDV+.
 -- Versão 1.3: backup (exportar e restaurar uma loja) e travas de segurança.
 -- Versão 1.4: contas a receber (crediário do PDV+), só pela sincronização.
+-- Versão 1.5: recebíveis de todas as vendas (Pix, cartão, dinheiro...), só pela sincronização.
 --
 -- Plano de contas no modelo gerencial (3 níveis):
 --   1 RECEITA/FATURAMENTO      (receita)
@@ -197,6 +198,26 @@ create table if not exists contas_receber (
   primary key (empresa_id, origem_id)
 );
 
+-- Recebíveis das vendas (versão 1.5): cada pagamento (Pix, cartão, dinheiro...) com os dados da maquininha.
+-- Só a sincronização grava. Taxa, prazo e situação o painel calcula pelas formas de pagamento.
+create table if not exists recebiveis (
+  empresa_id  uuid not null references empresas on delete cascade,
+  origem_id   text not null,               -- id do pagamento no PDV+ (venda_forma_pagamento)
+  data        date not null,               -- data da venda
+  hora        text,
+  forma       int  not null,
+  valor       numeric(12,2) not null default 0,   -- dinheiro já sem o troco
+  venda       text,
+  tipo_venda  int,
+  cliente     text,
+  bandeira    int,
+  nsu         text,
+  autorizacao text,
+  parcelas    int not null default 1,
+  primary key (empresa_id, origem_id)
+);
+create index if not exists recebiveis_emp_data on recebiveis (empresa_id, data);
+
 -- Resumo diário enviado pelo sincronizador (.exe) — só o sincronizador grava
 create table if not exists vendas_dia (
   empresa_id       uuid not null references empresas on delete cascade,
@@ -240,6 +261,7 @@ alter table formas_pagamento   enable row level security;
 alter table config_empresa     enable row level security;
 alter table pdv_ignorados      enable row level security;
 alter table contas_receber     enable row level security;
+alter table recebiveis         enable row level security;
 alter table vendas_dia         enable row level security;
 alter table pagamentos_dia     enable row level security;
 
@@ -263,7 +285,7 @@ begin
     execute format('drop policy if exists acesso on %I', t);
     execute format('create policy acesso on %I for all using (pode_ver(empresa_id)) with check (pode_ver(empresa_id))', t);
   end loop;
-  foreach t in array array['vendas_dia','pagamentos_dia','contas_receber'] loop
+  foreach t in array array['vendas_dia','pagamentos_dia','contas_receber','recebiveis'] loop
     execute format('drop policy if exists ver on %I', t);
     execute format('create policy ver on %I for select using (pode_ver(empresa_id))', t);
   end loop;
@@ -441,7 +463,7 @@ declare
   e   uuid;
   ini date := (dados->>'data_ini')::date;
   fim date := (dados->>'data_fim')::date;
-  n1 int; n2 int; nu int; nr int := 0; nf int := 0; nl int := 0; na int := 0; nx int := 0;
+  n1 int; n2 int; nu int; nr int := 0; nv int := 0; nf int := 0; nl int := 0; na int := 0; nx int := 0;
   cfg record; rf record; rp record; forn record; conta uuid;
 begin
   select id into e from empresas where chave_sync = chave and ativa;
@@ -479,6 +501,22 @@ begin
          (select id from plano_contas where empresa_id = e and codigo = '1.1.8')
     from pagamentos_dia p where p.empresa_id = e
   on conflict do nothing;
+
+  -- ---- recebíveis das vendas: substitui o período enviado
+  if dados ? 'recebiveis' then
+    delete from recebiveis where empresa_id = e
+       and data between coalesce((dados->>'recebiveis_ini')::date, ini) and fim;
+    insert into recebiveis (empresa_id, origem_id, data, hora, forma, valor, venda, tipo_venda, cliente, bandeira, nsu, autorizacao, parcelas)
+    select e, x.origem_id, x.data, x.hora, x.forma, coalesce(x.valor, 0), x.venda, x.tipo_venda, x.cliente, x.bandeira, x.nsu,
+           x.autorizacao, greatest(coalesce(x.parcelas, 1), 1)
+      from jsonb_to_recordset(dados->'recebiveis') as x(origem_id text, data date, hora text, forma int, valor numeric, venda text,
+           tipo_venda int, cliente text, bandeira int, nsu text, autorizacao text, parcelas int)
+     where coalesce(x.origem_id, '') <> '' and x.data is not null
+    on conflict (empresa_id, origem_id) do update set data = excluded.data, hora = excluded.hora, forma = excluded.forma,
+           valor = excluded.valor, venda = excluded.venda, tipo_venda = excluded.tipo_venda, cliente = excluded.cliente,
+           bandeira = excluded.bandeira, nsu = excluded.nsu, autorizacao = excluded.autorizacao, parcelas = excluded.parcelas;
+    get diagnostics nv = row_count;
+  end if;
 
   -- ---- contas a receber (crediário): o PDV+ manda a lista completa e ela substitui a anterior
   if dados ? 'contas_receber' then
@@ -563,7 +601,7 @@ begin
   return jsonb_build_object('empresa', (select nome from empresas where id = e),
                             'dias', n1, 'pagamentos', n2, 'fornecedores_novos', nf,
                             'contas_novas', nl, 'contas_atualizadas', na, 'contas_removidas', nx,
-                            'contas_receber', nr);
+                            'contas_receber', nr, 'recebiveis', nv);
 end $$;
 
 revoke all on function sincronizar(text, jsonb) from public;
@@ -589,6 +627,7 @@ language sql stable security definer set search_path = public as $$
     'movimentos',         coalesce((select jsonb_agg(to_jsonb(x)) from movimentos x where x.empresa_id = e), '[]'),
     'pdv_ignorados',      coalesce((select jsonb_agg(to_jsonb(x)) from pdv_ignorados x where x.empresa_id = e), '[]'),
     'contas_receber',     coalesce((select jsonb_agg(to_jsonb(x)) from contas_receber x where x.empresa_id = e), '[]'),
+    'recebiveis',         coalesce((select jsonb_agg(to_jsonb(x)) from recebiveis x where x.empresa_id = e), '[]'),
     'vendas_dia',         coalesce((select jsonb_agg(to_jsonb(x)) from vendas_dia x where x.empresa_id = e), '[]'),
     'pagamentos_dia',     coalesce((select jsonb_agg(to_jsonb(x)) from pagamentos_dia x where x.empresa_id = e), '[]'))
 $$;
@@ -631,6 +670,7 @@ begin
   delete from vendas_dia where empresa_id = empresa;
   delete from pagamentos_dia where empresa_id = empresa;
   delete from contas_receber where empresa_id = empresa;
+  delete from recebiveis where empresa_id = empresa;
   insert into plano_contas select (jsonb_populate_record(null::plano_contas, x || jsonb_build_object('empresa_id', empresa))).* from jsonb_array_elements(coalesce(dados->'plano_contas','[]')) x;
   insert into contas_financeiras select (jsonb_populate_record(null::contas_financeiras, x || jsonb_build_object('empresa_id', empresa))).* from jsonb_array_elements(coalesce(dados->'contas_financeiras','[]')) x;
   insert into fornecedores select (jsonb_populate_record(null::fornecedores, x || jsonb_build_object('empresa_id', empresa))).* from jsonb_array_elements(coalesce(dados->'fornecedores','[]')) x;
@@ -642,6 +682,7 @@ begin
   insert into vendas_dia select (jsonb_populate_record(null::vendas_dia, x || jsonb_build_object('empresa_id', empresa))).* from jsonb_array_elements(coalesce(dados->'vendas_dia','[]')) x;
   insert into pagamentos_dia select (jsonb_populate_record(null::pagamentos_dia, x || jsonb_build_object('empresa_id', empresa))).* from jsonb_array_elements(coalesce(dados->'pagamentos_dia','[]')) x;
   insert into contas_receber select (jsonb_populate_record(null::contas_receber, x || jsonb_build_object('empresa_id', empresa))).* from jsonb_array_elements(coalesce(dados->'contas_receber','[]')) x;
+  insert into recebiveis select (jsonb_populate_record(null::recebiveis, x || jsonb_build_object('empresa_id', empresa))).* from jsonb_array_elements(coalesce(dados->'recebiveis','[]')) x;
   select jsonb_build_object('contas_do_plano', (select count(*) from plano_contas where empresa_id = empresa),
                             'lancamentos', (select count(*) from lancamentos where empresa_id = empresa),
                             'fornecedores', (select count(*) from fornecedores where empresa_id = empresa),
