@@ -22,7 +22,7 @@ jobs:
   build:
     needs: teste
     runs-on: windows-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: sincronizador
@@ -68,7 +68,9 @@ jobs:
         if: steps.v.outputs.existe == '0'
         shell: pwsh
         run: |
-          $p = Start-Process dist/AliberFinanceiro-Instalador.exe -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART","/SP-","/TASKS=iniciar" -Wait -PassThru
+          # WaitForExit espera só o instalador (Start-Process -Wait esperaria também o programa que ele abre)
+          $p = Start-Process dist/AliberFinanceiro-Instalador.exe -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART","/SP-","/TASKS=iniciar" -PassThru
+          if (-not $p.WaitForExit(300000)) { Write-Host "::error::Instalador nao terminou em 5 minutos"; exit 1 }
           if ($p.ExitCode -ne 0) { Write-Host "::error::Instalador terminou com codigo $($p.ExitCode)"; exit 1 }
           $exe = Join-Path $env:LOCALAPPDATA "Programs\Aliber Financeiro\AliberFinanceiro.exe"
           if (-not (Test-Path $exe)) { Write-Host "::error::Programa nao ficou instalado em $exe"; exit 1 }
@@ -81,7 +83,8 @@ jobs:
           if ($titulo -notlike "Aliber Financeiro*") { Write-Host "::error::O programa nao abriu depois de instalar (janela='$titulo')"; exit 1 }
           Write-Host "Abriu depois de instalar: $titulo"
           # reinstalar por cima com o programa aberto (como a troca de versao faz)
-          $p = Start-Process dist/AliberFinanceiro-Instalador.exe -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART","/SP-" -Wait -PassThru
+          $p = Start-Process dist/AliberFinanceiro-Instalador.exe -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART","/SP-" -PassThru
+          if (-not $p.WaitForExit(300000)) { Write-Host "::error::Reinstalacao nao terminou em 5 minutos"; exit 1 }
           if ($p.ExitCode -ne 0) { Write-Host "::error::Reinstalacao por cima falhou ($($p.ExitCode))"; exit 1 }
           Start-Sleep 12
           $n = @(Get-Process AliberFinanceiro -ErrorAction SilentlyContinue).Count
@@ -89,7 +92,9 @@ jobs:
           if ($n -ne 1) { Write-Host "::error::Depois de reinstalar havia $n programa(s) abertos (esperado 1)"; exit 1 }
           Write-Host "Reinstalacao por cima: OK"
           $un = Join-Path $env:LOCALAPPDATA "Programs\Aliber Financeiro\unins000.exe"
-          Start-Process $un -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES" -Wait
+          $p = Start-Process $un -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES" -PassThru
+          [void]$p.WaitForExit(120000)
+          Start-Sleep 10
           if (Test-Path $exe) { Write-Host "::warning::Desinstalar deixou o programa na pasta" } else { Write-Host "Desinstalacao: OK" }
       - uses: softprops/action-gh-release@v2
         if: steps.v.outputs.existe == '0' && github.ref == 'refs/heads/main'
