@@ -1,0 +1,4 @@
+Primeira versão do Aliber Financeiro.
+- Lê as vendas do PDV+ (só leitura) e envia o resumo diário para o painel online a cada 15 minutos
+- Separa recebimento de crediário de venda nova e tira o troco do dinheiro
+- Abre sozinho com o Windows e se atualiza sozinho

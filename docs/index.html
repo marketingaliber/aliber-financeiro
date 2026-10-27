@@ -1,0 +1,1362 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="icon" href="icone.png">
+<meta name="theme-color" content="#143E7E">
+</head>
+<body>
+<title>Aliber Financeiro</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,650&family=Figtree:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+/* Layout: barra lateral azul Aliber + área de trabalho; no celular a barra vira abas no topo.
+   Vermelho Aliber só nas ações principais; estados (vencida/paga) com cores próprias. */
+:root {
+  --bg: #F3F6FB; --surface: #FFFFFF; --surface-2: #EAF0F8; --fg: #14203A; --muted: #5A6782; --line: #D9E1EE;
+  --brand: #1B4FA0; --brand-soft: #E3ECFA; --accent: #D7262B; --accent-ink: #FFFFFF;
+  --nav-bg: #143E7E; --nav-fg: #E8EFFB; --nav-muted: #A9BEE2; --nav-active: #FFFFFF; --nav-active-bg: rgba(255,255,255,.12);
+  --ok: #1D7A48; --ok-soft: #E1F3E9; --warn: #A86300; --warn-soft: #FCF0DC; --bad: #B42318; --bad-soft: #FCE6E4;
+  --hero: #1B4FA0; --bar: #1B4FA0; --bar-2: #8FB0E6; --grid: #E4EAF3; --shadow: 0 1px 2px rgba(20,32,58,.06), 0 6px 20px rgba(20,32,58,.06);
+  --f-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --f-body: "Figtree", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+  --r: 10px;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0D1422; --surface: #141D2E; --surface-2: #1B2639; --fg: #E5EBF5; --muted: #95A3BC; --line: #28344A;
+  --brand: #7AA2EA; --brand-soft: #1D2C48; --accent: #EF4F55; --accent-ink: #FFFFFF;
+  --nav-bg: #0A1932; --nav-fg: #DCE6F7; --nav-muted: #8EA3C7; --nav-active: #FFFFFF; --nav-active-bg: rgba(255,255,255,.09);
+  --ok: #52C88C; --ok-soft: #15301F; --warn: #F0B14D; --warn-soft: #33270F; --bad: #FF7A70; --bad-soft: #3A1715;
+  --hero: #24508F; --bar: #7AA2EA; --bar-2: #3D5E96; --grid: #222D41; --shadow: 0 1px 2px rgba(0,0,0,.3);
+  color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #0D1422; --surface: #141D2E; --surface-2: #1B2639; --fg: #E5EBF5; --muted: #95A3BC; --line: #28344A;
+  --brand: #7AA2EA; --brand-soft: #1D2C48; --accent: #EF4F55; --accent-ink: #FFFFFF;
+  --nav-bg: #0A1932; --nav-fg: #DCE6F7; --nav-muted: #8EA3C7; --nav-active: #FFFFFF; --nav-active-bg: rgba(255,255,255,.09);
+  --ok: #52C88C; --ok-soft: #15301F; --warn: #F0B14D; --warn-soft: #33270F; --bad: #FF7A70; --bad-soft: #3A1715;
+  --hero: #24508F; --bar: #7AA2EA; --bar-2: #3D5E96; --grid: #222D41; --shadow: 0 1px 2px rgba(0,0,0,.3);
+  color-scheme: dark }
+
+* { box-sizing: border-box }
+body { margin: 0 }
+[hidden] { display: none !important }
+@media print { .nav, .barra, .periodo, .demo, #toast { display: none !important } .shell { display: block } .principal { padding: 0 } .tabela { border: 0 } }
+html, body { height: 100% }
+body { background: var(--bg); color: var(--fg); font: 15px/1.5 var(--f-body); -webkit-font-smoothing: antialiased }
+button, input, select, textarea { font: inherit; color: inherit }
+h1, h2, h3 { font-family: var(--f-display); font-weight: 650; line-height: 1.15; margin: 0; text-wrap: balance; letter-spacing: -.01em }
+.num, td.v, .kpi b { font-variant-numeric: tabular-nums }
+:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; border-radius: 6px }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important } }
+
+/* ---------- moldura */
+.shell { display: grid; grid-template-columns: 236px minmax(0,1fr); min-height: 100%; background: linear-gradient(to right, var(--nav-bg) 236px, transparent 236px) }
+.nav { background: var(--nav-bg); color: var(--nav-fg); display: flex; flex-direction: column; gap: 4px;
+  padding-block: 20px; padding-left: max(14px, env(safe-area-inset-left, 0px)); padding-right: 14px; position: sticky; top: 0; height: 100vh }
+.marca { display: flex; align-items: baseline; gap: 6px; padding: 0 10px 18px; font-family: var(--f-display); font-size: 22px; font-weight: 650 }
+.marca .a { color: #FF4D52 } .marca .f { color: var(--nav-fg); font-weight: 500 }
+.nav a { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 8px; color: var(--nav-muted); text-decoration: none; font-weight: 600; font-size: 14.5px }
+.nav a:hover { color: var(--nav-active) }
+.nav a.on { background: var(--nav-active-bg); color: var(--nav-active) }
+.nav a .ic { width: 18px; height: 18px; flex: none }
+.nav .rodape { margin-top: auto; padding: 12px 10px 0; border-top: 1px solid rgba(255,255,255,.12); font-size: 12.5px; color: var(--nav-muted); display: grid; gap: 6px }
+.nav .rodape button { background: none; border: 0; padding: 0; color: var(--nav-fg); text-align: left; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; font-size: 13px }
+.principal { min-width: 0; padding-block: 22px 48px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)) }
+.miolo { max-width: 1180px; margin: 0 auto; display: grid; grid-template-columns: minmax(0,1fr); gap: 18px }
+.topo { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px }
+.topo h1 { font-size: 28px }
+.topo .sub { color: var(--muted); font-size: 14px; margin-top: 2px }
+.demo { background: var(--warn-soft); color: var(--warn); border-radius: var(--r); padding: 10px 14px; font-size: 13.5px; font-weight: 500 }
+.demo b { font-weight: 700 }
+
+@media (max-width: 860px) {
+  .shell { grid-template-columns: minmax(0,1fr); background: none }
+  .nav { position: sticky; top: env(safe-area-inset-top, 0px); height: auto; flex-direction: row; align-items: center; overflow-x: auto; z-index: 20;
+    padding-block: 8px; padding-right: max(14px, env(safe-area-inset-right, 0px)); gap: 2px; scrollbar-width: none }
+  body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 30; background: var(--nav-bg) }
+  .marca { padding: 0 8px 0 2px; font-size: 18px }
+  .nav a { white-space: nowrap; padding: 7px 10px; font-size: 14px }
+  .nav a .ic { display: none }
+  .nav .rodape { display: none }
+  .topo h1 { font-size: 23px }
+}
+
+/* ---------- peças */
+.painel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 18px; min-width: 0 }
+.painel > h2 { font-size: 17px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap }
+.painel > h2 small { font-family: var(--f-body); font-weight: 500; font-size: 13px; color: var(--muted) }
+.grade { display: grid; gap: 18px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)) }
+.kpis { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)) }
+.kpi { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 14px 16px; display: grid; gap: 2px; align-content: start }
+.kpi span { color: var(--muted); font-size: 12.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em }
+.kpi b { font-family: var(--f-display); font-size: 26px; font-weight: 650; line-height: 1.2 }
+.kpi small { color: var(--muted); font-size: 13px }
+.kpi.destaque { background: var(--hero); border-color: var(--hero); color: #fff }
+.kpi.destaque span, .kpi.destaque small { color: rgba(255,255,255,.82) }
+.neg { color: var(--bad) } .pos { color: var(--ok) }
+.kpi.destaque .neg { color: #FFD2CF }
+
+.bt { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: var(--surface); padding: 8px 13px; border-radius: 8px; font-weight: 600; font-size: 14px; cursor: pointer; white-space: nowrap }
+.bt:hover { border-color: var(--brand) }
+.bt.pri { background: var(--accent); border-color: var(--accent); color: var(--accent-ink) }
+.bt.pri:hover { filter: brightness(1.06) }
+.bt.azul { background: var(--hero); border-color: var(--hero); color: #fff }
+.bt.mini { padding: 4px 9px; font-size: 13px; border-radius: 6px }
+.bt.link { border: 0; background: none; padding: 4px 6px; color: var(--brand) }
+.bt.perigo { color: var(--bad) }
+.bt:disabled { opacity: .55; cursor: default }
+.barra { display: flex; flex-wrap: wrap; gap: 8px; align-items: center }
+.seg { display: inline-flex; background: var(--surface-2); border-radius: 9px; padding: 3px; gap: 2px; flex-wrap: wrap }
+.seg button { border: 0; background: none; padding: 6px 11px; border-radius: 7px; font-weight: 600; font-size: 13.5px; color: var(--muted); cursor: pointer }
+.seg button.on { background: var(--surface); color: var(--fg); box-shadow: 0 1px 2px rgba(0,0,0,.08) }
+label.campo { display: grid; gap: 4px; font-size: 13px; font-weight: 600; color: var(--muted) }
+input[type=text], input[type=email], input[type=password], input[type=number], input[type=date], input[type=search], select, textarea {
+  border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 8px 10px; font-size: 14.5px; color: var(--fg); min-width: 0; width: 100% }
+input:focus, select:focus, textarea:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft) }
+.periodo { display: flex; flex-wrap: wrap; gap: 8px; align-items: center }
+.periodo .datas { display: flex; gap: 6px; align-items: center }
+.periodo .datas input { width: 150px }
+
+.tabela input[type=text] { min-width: 120px }
+.tabela { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface) }
+table { border-collapse: collapse; width: 100%; font-size: 14px }
+th { text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); font-weight: 700; padding: 10px 12px; border-bottom: 1px solid var(--line); background: var(--surface-2); white-space: nowrap }
+td { padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: middle }
+tr:last-child td { border-bottom: 0 }
+td.v, th.v { text-align: right; white-space: nowrap }
+td .sec { display: block; color: var(--muted); font-size: 12.5px }
+td.acoes { text-align: right; white-space: nowrap }
+.cod { font-family: var(--f-mono); font-size: 12.5px; color: var(--muted) }
+.pill { display: inline-block; padding: 2px 9px; border-radius: 99px; font-size: 12px; font-weight: 700; white-space: nowrap }
+.pill.ok { background: var(--ok-soft); color: var(--ok) }
+.pill.bad { background: var(--bad-soft); color: var(--bad) }
+.pill.warn { background: var(--warn-soft); color: var(--warn) }
+.pill.neu { background: var(--surface-2); color: var(--muted) }
+.pill.pdv { background: var(--brand-soft); color: var(--brand) }
+.vazio { padding: 28px 16px; text-align: center; color: var(--muted) }
+
+/* DRE */
+.dre td, .dre th { padding: 8px 12px }
+.dre tr.grupo td { font-weight: 700; background: var(--surface-2); cursor: pointer }
+.dre tr.grupo td:first-child::before { content: "▾"; display: inline-block; width: 16px; color: var(--muted); transition: transform .15s }
+.dre tr.grupo.fechado td:first-child::before { transform: rotate(-90deg) }
+.dre tr.conta td:first-child { padding-left: 34px; color: var(--fg) }
+.dre tr.conta.zero td { color: var(--muted) }
+.dre tr.total td { font-weight: 700; border-top: 2px solid var(--line); font-family: var(--f-display); font-size: 15.5px }
+.dre tr.total.final td { background: var(--brand-soft); color: var(--fg); font-size: 17px }
+.dre td.p { color: var(--muted); font-size: 12.5px; text-align: right; width: 70px }
+.sinal { display: inline-block; width: 22px; color: var(--muted); font-family: var(--f-mono); font-size: 12px }
+.nota { color: var(--muted); font-size: 13px }
+
+/* gráficos */
+.graf svg { width: 100%; height: auto; display: block }
+.graf text { fill: var(--muted); font-size: 11px; font-family: var(--f-body) }
+.formas { display: grid; gap: 10px }
+.forma { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 2px 10px; font-size: 14px }
+.forma .trilho { grid-column: 1 / -1; height: 8px; background: var(--surface-2); border-radius: 99px; overflow: hidden }
+.forma .trilho i { display: block; height: 100%; background: var(--bar); border-radius: 99px }
+.lista-venc { display: grid }
+.lista-venc > div { display: grid; grid-template-columns: minmax(0,1fr) auto auto; gap: 10px; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 14px }
+.lista-venc .q { min-width: 0; display: grid; gap: 1px }
+.lista-venc > div:last-child { border-bottom: 0 }
+.lista-venc .d { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 13px }
+.lista-venc .t { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600 }
+
+.dre tr.sub td { font-weight: 650; cursor: pointer; background: color-mix(in srgb, var(--surface-2) 45%, var(--surface)) }
+.dre tr.sub td:first-child { padding-left: 34px }
+.dre tr.sub td:first-child::before { content: "▾"; display: inline-block; width: 14px; color: var(--muted); transition: transform .15s }
+.dre tr.sub.fechado td:first-child::before { transform: rotate(-90deg) }
+.dre tr.conta.n3 td:first-child { padding-left: 62px }
+tr.futuro td { color: var(--muted) }
+.plano .s { display: grid; grid-template-columns: 52px minmax(0,1fr) auto; gap: 10px; align-items: center; padding: 9px 14px; border-top: 1px solid var(--line); font-weight: 650; font-size: 14px; background: color-mix(in srgb, var(--surface-2) 45%, var(--surface)) }
+.plano .s .cod { color: var(--fg) }
+.plano .s ~ .c { padding-left: 30px }
+input[type=file] { font-size: 14px }
+/* plano de contas */
+.plano { display: grid; gap: 14px }
+.plano .g { border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); overflow: hidden }
+.plano .g header { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 10px 14px; background: var(--surface-2); flex-wrap: wrap }
+.plano .g header h3 { font-size: 15.5px }
+.plano .c { display: grid; grid-template-columns: 52px minmax(0,1fr) auto; gap: 10px; align-items: center; padding: 8px 14px; border-top: 1px solid var(--line); font-size: 14.5px }
+.plano .c.inativa .nome { color: var(--muted); text-decoration: line-through }
+
+/* modal, aviso */
+.fundo { position: fixed; inset: 0; background: rgba(10,18,34,.5); display: grid; place-items: center; z-index: 50; padding: 16px }
+.caixa { background: var(--surface); border-radius: 14px; width: min(560px, 100%); max-height: calc(100% - 20px); overflow: auto; box-shadow: 0 20px 60px rgba(0,0,0,.3) }
+.caixa header { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px 0 }
+.caixa header h2 { font-size: 20px }
+.caixa form { padding: 16px 20px 20px; display: grid; gap: 12px }
+.caixa .duas { display: grid; grid-template-columns: 1fr 1fr; gap: 12px }
+@media (max-width: 480px) { .caixa .duas { grid-template-columns: 1fr } }
+.caixa .acoes-form { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; padding-top: 4px }
+.check { display: flex; gap: 8px; align-items: center; font-size: 14px; font-weight: 500; color: var(--fg) }
+.x { border: 0; background: none; font-size: 22px; line-height: 1; cursor: pointer; color: var(--muted); padding: 4px }
+#toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(20px + env(safe-area-inset-bottom, 0px)); z-index: 60; display: grid; gap: 8px; pointer-events: none }
+#toast div { background: var(--fg); color: var(--bg); padding: 10px 16px; border-radius: 9px; font-weight: 600; font-size: 14px; box-shadow: var(--shadow) }
+#toast div.erro { background: var(--bad); color: #fff }
+
+/* login */
+.entrada { min-height: 100%; display: grid; place-items: center; padding-block: 24px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); background: var(--nav-bg) }
+.entrada .caixa { width: min(400px, 100%); padding: 28px 26px; display: grid; gap: 16px }
+.entrada .caixa form { padding: 0 }
+.entrada .marca { padding: 0; font-size: 26px } .entrada .marca .f { color: var(--fg) }
+.entrada p { margin: 0; color: var(--muted); font-size: 14px }
+.carregando { display: grid; place-items: center; min-height: 60vh; color: var(--muted) }
+@media (max-width: 860px) { .kpis { grid-template-columns: repeat(2, minmax(0,1fr)) } .kpi { padding: 12px } .kpi b { font-size: 19px } .kpi small { font-size: 12px } }
+</style>
+
+<div id="app"><div class="carregando">Carregando…</div></div>
+<div id="toast" aria-live="polite"></div>
+
+<script>
+/* =====================================================================
+   CONFIGURAÇÃO — preencher com os dados do projeto Supabase da Aliber
+   (Supabase > Project Settings > API). Vazio = modo demonstração.
+   ===================================================================== */
+const CONFIG = {"supabaseUrl": "https://gdoklolbjrnnqcklgjtt.supabase.co", "supabaseAnon": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdkb2tsb2xianJubnFja2xnanR0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMwNTY5ODQsImV4cCI6MjEwODYzMjk4NH0.YoBdRMey8JKVYR7HWeTZsRVWxOFq1L94E7nq5qtQYd0"};
+const DEMO_RESUMO = /*DEMO*/null/*FIM*/;
+const VERSAO_PAINEL = "2.0";
+
+/* ---------------------------------------------------------------- utilidades */
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const nBRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
+const brl = v => nBRL.format(Math.round((+v || 0) * 100) / 100 + 0);
+const pct = v => isFinite(v) ? (v * 100).toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + "%" : "–";
+const pad = n => String(n).padStart(2, "0");
+const iso = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const hoje = () => iso(new Date());
+const paraData = s => { const [a, m, d] = s.split("-").map(Number); return new Date(a, m - 1, d); };
+const addDias = (s, n) => { const d = paraData(s); d.setDate(d.getDate() + n); return iso(d); };
+const addMeses = (s, n) => { const d = paraData(s); const dia = d.getDate(); d.setDate(1); d.setMonth(d.getMonth() + n);
+  const ult = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate(); d.setDate(Math.min(dia, ult)); return iso(d); };
+const inicioMes = s => s.slice(0, 8) + "01";
+const fimMes = s => { const d = paraData(s); return iso(new Date(d.getFullYear(), d.getMonth() + 1, 0)); };
+const dataBR = s => s ? `${s.slice(8, 10)}/${s.slice(5, 7)}/${s.slice(0, 4)}` : "";
+const MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+const mesCurto = s => `${MESES[+s.slice(5, 7) - 1]}/${s.slice(2, 4)}`;
+const uid = () => (crypto.randomUUID ? crypto.randomUUID() : "id-" + Math.random().toString(36).slice(2) + Date.now().toString(36));
+const lerNum = s => { if (typeof s === "number") return s; s = String(s || "").trim().replace(/\s|R\$/g, "");
+  if (s.includes(",")) s = s.replace(/\./g, "").replace(",", "."); const n = parseFloat(s); return isFinite(n) ? n : NaN; };
+const numBR = v => (+v || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+function guardar(k, v) { try { localStorage.setItem("aliberfin." + k, JSON.stringify(v)); } catch (e) {} }
+function lembrar(k, padrao) { try { const v = localStorage.getItem("aliberfin." + k); return v ? JSON.parse(v) : padrao; } catch (e) { return padrao; } }
+function toast(msg, erro) { const d = document.createElement("div"); d.textContent = msg; if (erro) d.className = "erro";
+  $("#toast").appendChild(d); setTimeout(() => d.remove(), erro ? 6000 : 3000); }
+const ICONES = {
+  resumo: '<path d="M3 13h7V3H3zM14 21h7v-8h-7zM3 21h7v-5H3zM14 3v7h7V3z"/>',
+  dre: '<path d="M4 4h16M4 9h16M4 14h10M4 19h6"/>',
+  contas: '<rect x="3" y="5" width="18" height="15" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
+  fornecedores: '<path d="M3 21V8l9-5 9 5v13"/><path d="M9 21v-7h6v7"/>',
+  plano: '<path d="M4 5h4M4 12h4M4 19h4M11 5h9M11 12h9M11 19h9"/>',
+  config: '<circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.2l2-1.6-2-3.4-2.4 1a7 7 0 0 0-2-1.2L14 3h-4l-.5 2.6a7 7 0 0 0-2 1.2l-2.4-1-2 3.4 2 1.6A7 7 0 0 0 5 12c0 .4 0 .8.1 1.2l-2 1.6 2 3.4 2.4-1a7 7 0 0 0 2 1.2L10 21h4l.5-2.6a7 7 0 0 0 2-1.2l2.4 1 2-3.4-2-1.6c.1-.4.1-.8.1-1.2z"/>',
+  bancos: '<path d="M3 10h18M5 10v8M9.5 10v8M14.5 10v8M19 10v8M3 21h18M12 3l9 5H3z"/>',
+  admin: '<circle cx="9" cy="8" r="4"/><path d="M2 21c0-4 3-6 7-6s7 2 7 6M17 11l2 2 4-4"/>',
+};
+const icone = n => `<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICONES[n]}</svg>`;
+
+/* ---------------------------------------------------------------- plano de contas e DRE */
+/* Modelo gerencial: RECEITA − CUSTOS VARIÁVEIS = MARGEM DE CONTRIBUIÇÃO − DESPESAS FIXAS = RESULTADO
+   OPERACIONAL − INVESTIMENTOS ± MOVIMENTAÇÕES NÃO OPERACIONAIS = RESULTADO FINAL (geração de caixa). */
+const GRUPOS = [
+  { g: "receita", cod: "1", nome: "RECEITA/FATURAMENTO", curto: "Receita" },
+  { g: "custo_variavel", cod: "3", nome: "CUSTOS VARIÁVEIS", curto: "Custos variáveis" },
+  { g: "despesa_fixa", cod: "4", nome: "DESPESAS FIXAS", curto: "Despesas fixas" },
+  { g: "investimento", cod: "5", nome: "INVESTIMENTOS", curto: "Investimentos" },
+  { g: "entrada_nop", cod: "6.2", nome: "ENTRADAS NÃO OPERACIONAIS", curto: "Entradas não operacionais" },
+  { g: "saida_nop", cod: "6.1", nome: "SAÍDAS NÃO OPERACIONAIS", curto: "Saídas não operacionais" },
+];
+const ENTRADA = { receita: true, entrada_nop: true };
+const PLANO_PADRAO = [
+  ["1.1", "RECEITA DE VENDAS", "receita", true],
+  ["1.1.1", "Receita Pix", "receita", false],
+  ["1.1.2", "Receita em cartões", "receita", false],
+  ["1.1.3", "Receita boleto", "receita", false],
+  ["1.1.4", "Receita nota de crédito", "receita", false],
+  ["1.1.6", "Receita de cheque", "receita", false],
+  ["1.1.7", "Receita em dinheiro", "receita", false],
+  ["1.1.8", "Outras Receitas", "receita", false],
+  ["3.1", "CUSTOS TRIBUTÁRIOS OU FINANCEIROS", "custo_variavel", true],
+  ["3.1.1", "Simples Nacional", "custo_variavel", false],
+  ["3.1.2", "ICMS Diferencial de Aliquota", "custo_variavel", false],
+  ["3.1.3", "Taxa de cartões", "custo_variavel", false, "taxas"],
+  ["3.2", "CUSTOS COM INSUMOS", "custo_variavel", true],
+  ["3.2.1", "Insumos (materia prima)", "custo_variavel", false],
+  ["3.2.2", "Farinhas", "custo_variavel", false],
+  ["3.2.3", "Recheios", "custo_variavel", false],
+  ["3.2.4", "Açucares", "custo_variavel", false],
+  ["3.3", "CUSTOS COM FRETE", "custo_variavel", true],
+  ["3.3.1", "Custos com Fretes Produtos", "custo_variavel", false],
+  ["3.4", "CUSTOS COM MÃO DE OBRA VARIÁVEL", "custo_variavel", true],
+  ["3.4.1", "Facção costureiras", "custo_variavel", false],
+  ["3.4.2", "Outros serviços terceirizados", "custo_variavel", false],
+  ["3.5", "CUSTOS COM VENDAS", "custo_variavel", true],
+  ["3.5.1", "Comissão de vendas", "custo_variavel", false],
+  ["3.5.2", "Comissões Extras", "custo_variavel", false],
+  ["4.1", "DESPESAS DE PRODUÇÃO", "despesa_fixa", true],
+  ["4.1.1", "Uniformes", "despesa_fixa", false],
+  ["4.1.2", "Coleta de resíduos", "despesa_fixa", false],
+  ["4.1.3", "SESMT/Medicina do trabalho", "despesa_fixa", false],
+  ["4.1.4", "Refeitório", "despesa_fixa", false],
+  ["4.1.5", "Aluguel de máquinas", "despesa_fixa", false],
+  ["4.1.6", "Materiais de uso/consumo", "despesa_fixa", false],
+  ["4.1.7", "Epi´s", "despesa_fixa", false],
+  ["4.1.8", "Desenvolvimento de Produtos", "despesa_fixa", false],
+  ["4.1.9", "Lixas e abrasivos", "despesa_fixa", false],
+  ["4.1.10", "Meio Ambiente", "despesa_fixa", false],
+  ["4.1.11", "Relógio de ponto", "despesa_fixa", false],
+  ["4.2", "DESPESAS ADMINISTRATIVAS", "despesa_fixa", true],
+  ["4.2.1", "Telefone/comunicações", "despesa_fixa", false],
+  ["4.2.2", "Internet", "despesa_fixa", false],
+  ["4.2.3", "Energia", "despesa_fixa", false],
+  ["4.2.4", "Aluguel", "despesa_fixa", false],
+  ["4.2.5", "Água/gas", "despesa_fixa", false],
+  ["4.2.6", "IPTU/ taxas municipais", "despesa_fixa", false],
+  ["4.2.7", "Supermercado", "despesa_fixa", false],
+  ["4.2.8", "Farmacia", "despesa_fixa", false],
+  ["4.2.9", "Correios", "despesa_fixa", false],
+  ["4.2.10", "Cartório", "despesa_fixa", false],
+  ["4.2.11", "Contador", "despesa_fixa", false],
+  ["4.2.12", "Software", "despesa_fixa", false],
+  ["4.2.13", "Sistema de segurança/monitoramento", "despesa_fixa", false],
+  ["4.2.14", "Gráfica", "despesa_fixa", false],
+  ["4.2.15", "Conect (SERASA)", "despesa_fixa", false],
+  ["4.2.16", "Serviço de TI", "despesa_fixa", false],
+  ["4.2.17", "Despesas comerciais (supervisão)", "despesa_fixa", false],
+  ["4.2.18", "Café funcionários", "despesa_fixa", false],
+  ["4.2.19", "Materiais de escritório", "despesa_fixa", false],
+  ["4.2.20", "Provedor de email/site", "despesa_fixa", false],
+  ["4.2.21", "Seguro padaria", "despesa_fixa", false],
+  ["4.2.22", "Honorários Advocatícios", "despesa_fixa", false],
+  ["4.3", "DESPESAS COM PESSOAL", "despesa_fixa", true],
+  ["4.3.1", "Salários", "despesa_fixa", false],
+  ["4.3.2", "Hora extra", "despesa_fixa", false],
+  ["4.3.3", "Vale refeição e vale transporte", "despesa_fixa", false],
+  ["4.3.4", "FGTS", "despesa_fixa", false],
+  ["4.3.5", "Rescisão", "despesa_fixa", false],
+  ["4.3.6", "INSS", "despesa_fixa", false],
+  ["4.3.7", "13º Salário", "despesa_fixa", false],
+  ["4.3.8", "Férias com 1/3 de férias", "despesa_fixa", false],
+  ["4.3.9", "IRRF", "despesa_fixa", false],
+  ["4.3.10", "Pró-labore", "despesa_fixa", false],
+  ["4.3.11", "Plano de saúde", "despesa_fixa", false],
+  ["4.3.12", "Vale Funcionários", "despesa_fixa", false],
+  ["4.3.13", "Bonificação", "despesa_fixa", false],
+  ["4.3.14", "Sindicatos", "despesa_fixa", false],
+  ["4.3.15", "Freelancer", "despesa_fixa", false],
+  ["4.3.16", "Moto boy", "despesa_fixa", false],
+  ["4.3.17", "Seguro funcionarios", "despesa_fixa", false],
+  ["4.3.18", "Assiduidade", "despesa_fixa", false],
+  ["4.4", "DESPESAS COM MATERIAIS E EQUIPAMETOS", "despesa_fixa", true],
+  ["4.4.1", "Manutenção de máquinas e equipamentos", "despesa_fixa", false],
+  ["4.4.2", "Manutenção Peças e acessórios", "despesa_fixa", false],
+  ["4.4.3", "Empilhadeiras", "despesa_fixa", false],
+  ["4.4.4", "Manutenção predial", "despesa_fixa", false],
+  ["4.5", "DESPESAS COM VEÍCULOS", "despesa_fixa", true],
+  ["4.5.1", "Combustível", "despesa_fixa", false],
+  ["4.5.2", "Manutenção veiculos", "despesa_fixa", false],
+  ["4.5.3", "IPVA/ Licenciamento/Despachante/Seguros", "despesa_fixa", false],
+  ["4.5.4", "Estacionamento/pedágio", "despesa_fixa", false],
+  ["4.5.5", "Outros", "despesa_fixa", false],
+  ["4.6", "DESPESAS FINANCEIRAS", "despesa_fixa", true],
+  ["4.6.1", "Manutenção de conta", "despesa_fixa", false],
+  ["4.6.2", "TED/DOC/PIX", "despesa_fixa", false],
+  ["4.6.3", "Aluguel máquina de cartão", "despesa_fixa", false],
+  ["4.6.4", "Taxa de boletos", "despesa_fixa", false],
+  ["4.6.5", "Outras despesas financeiras", "despesa_fixa", false],
+  ["4.7", "OUTROS", "despesa_fixa", true],
+  ["4.7.1", "OUTROS", "despesa_fixa", false],
+  ["5.1", "INVESTIMENTO EM MARKETING", "investimento", true],
+  ["5.1.1", "Folder/cartão de visita", "investimento", false],
+  ["5.1.2", "Mídeas/ propagandas", "investimento", false],
+  ["5.1.3", "Realização de eventos", "investimento", false],
+  ["5.1.4", "Prestadores de serviços em Marketing", "investimento", false],
+  ["5.1.5", "Catálogo/mostruário", "investimento", false],
+  ["5.1.6", "Outros", "investimento", false],
+  ["5.2", "INVESTIMENTO EM BENS MATERIAIS", "investimento", true],
+  ["5.2.1", "Compra de equipamentos adminstração", "investimento", false],
+  ["5.2.2", "Compra de maquinário", "investimento", false],
+  ["5.2.3", "Reforma / estrutura", "investimento", false],
+  ["5.2.4", "Imobilizado", "investimento", false],
+  ["5.2.5", "Compra de veículos", "investimento", false],
+  ["5.2.6", "Consórcios", "investimento", false],
+  ["5.2.7", "Energia solar", "investimento", false],
+  ["5.3", "INVESTIMENTO EM DESENVOLVIMENTO PESSOAL", "investimento", true],
+  ["5.3.1", "Consultorias", "investimento", false],
+  ["5.3.2", "Treinamentos", "investimento", false],
+  ["6.1", "SAÍDAS NÃO OPERACIONAIS", "saida_nop", true],
+  ["6.1.1", "Pagamento de empréstimo", "saida_nop", false],
+  ["6.1.2", "Pagamento de dívidas passadas", "saida_nop", false],
+  ["6.1.3", "Distribuição de lucros", "saida_nop", false],
+  ["6.1.4", "Júros de antecipação de recebíveis", "saida_nop", false],
+  ["6.1.5", "Júros de atraso de PGTO", "saida_nop", false, "juros_pagos"],
+  ["6.1.6", "Cheque Especial", "saida_nop", false],
+  ["6.2", "ENTRADAS NÃO OPERACIONAIS", "entrada_nop", true],
+  ["6.2.1", "Empréstimos obtidos", "entrada_nop", false],
+  ["6.2.2", "Capitalização dos sócios", "entrada_nop", false],
+  ["6.2.3", "Venda de equipamentos usados", "entrada_nop", false],
+  ["6.2.4", "Venda de sucatas/outros", "entrada_nop", false],
+  ["6.2.5", "Desconto Obtido", "entrada_nop", false, "desconto_obtido"],
+  ["6.2.6", "Receita de Juros", "entrada_nop", false, "juros_recebidos"],
+];
+const AUTO_DESC = { taxas: "calculada pela taxa de cada forma de pagamento (Configurações)", juros_pagos: "recebe a diferença quando uma conta é paga com juros",
+  desconto_obtido: "recebe a diferença quando uma conta é paga com desconto", juros_recebidos: "recebe a diferença quando uma entrada é recebida a mais" };
+const segs = c => c.split(".").map(n => parseInt(n) || 0);
+function ordemCod(a, b) { const x = segs(a.codigo || a), y = segs(b.codigo || b);
+  for (let i = 0; i < Math.max(x.length, y.length); i++) { const d = (x[i] ?? -1) - (y[i] ?? -1); if (d) return d; } return 0; }
+function grupoDoCodigo(cod) { const p = cod.split(".");
+  if (p[0] === "1") return "receita"; if (p[0] === "2" || p[0] === "3") return "custo_variavel"; if (p[0] === "4") return "despesa_fixa";
+  if (p[0] === "5") return "investimento"; if (p[0] === "6") return p[1] === "2" ? "entrada_nop" : "saida_nop"; return "despesa_fixa"; }
+/** Agrupa as contas de um grupo em blocos por subgrupo (conta sintética). */
+function arvore(cs) {
+  const blocos = cs.filter(c => c.sintetica).sort(ordemCod).map(sub => ({ sub, contas: [] })), soltas = { sub: null, contas: [] };
+  cs.filter(c => !c.sintetica).sort(ordemCod).forEach(c => { let melhor = null;
+    blocos.forEach(b => { if (c.codigo.startsWith(b.sub.codigo + ".") && (!melhor || b.sub.codigo.length > melhor.sub.codigo.length)) melhor = b; });
+    (melhor || soltas).contas.push(c); });
+  return soltas.contas.length ? [soltas, ...blocos] : blocos;
+}
+const ehAPrazo = f => f ? (f.a_prazo ?? +f.codigo === 2) : false;
+
+/** Valor de cada conta no período. opc = { regime: competencia|caixa, cmv: compras|cadastro } */
+function valoresDRE(ini, fim, opc, d) {
+  const v = {}; const add = (id, x) => { if (id && x) v[id] = (v[id] || 0) + x; };
+  const auto = {}, porId = {}; d.plano.forEach(c => { porId[c.id] = c; if (c.automatica) auto[c.automatica] = c.id; });
+  const dentro = s => s >= ini && s <= fim, caixa = opc.regime === "caixa";
+  const fm = {}; d.formas.forEach(f => fm[f.codigo] = f);
+  const outras = (d.plano.find(c => c.codigo === "1.1.8") || d.plano.find(c => c.grupo === "receita" && !c.sintetica))?.id;
+  d.pagamentos.forEach(p => { const f = fm[p.forma];
+    if (caixa ? (p.categoria === "venda" && ehAPrazo(f)) : p.categoria === "recebimento") return;
+    const dt = caixa ? addDias(p.data, +(f?.prazo_dias) || 0) : p.data; if (!dentro(dt)) return;
+    const val = +p.valor || 0; add(f?.conta_receita_id || outras, val);
+    const t = +(f?.taxa_percentual) || 0; if (t && !ehAPrazo(f)) add(auto.taxas, val * t / 100); });
+  const cmvCadastro = opc.cmv === "cadastro";
+  if (cmvCadastro) v.__cmv = d.vendas.filter(x => dentro(x.data)).reduce((s, x) => s + (+x.custo || 0), 0);
+  d.lancamentos.forEach(l => { const c = porId[l.conta_id]; if (!c) return;
+    if (cmvCadastro && c.codigo.startsWith("3.2.")) return;
+    if (caixa) { if (l.pago_em && dentro(l.pago_em)) add(l.conta_id, +l.valor); } else if (dentro(l.competencia)) add(l.conta_id, +l.valor);
+    if (l.pago_em && l.valor_pago != null && dentro(l.pago_em)) { const dif = Math.round((+l.valor_pago - +l.valor) * 100) / 100; if (!dif) return;
+      if (ENTRADA[c.grupo]) { if (dif > 0) add(auto.juros_recebidos || l.conta_id, dif); else add(l.conta_id, dif); }
+      else if (dif > 0) add(auto.juros_pagos || l.conta_id, dif); else add(auto.desconto_obtido || l.conta_id, -dif); }
+  });
+  return v;
+}
+function montarDRE(v, plano) {
+  const r = { v, grupos: {} };
+  GRUPOS.forEach(G => { const blocos = arvore(plano.filter(c => c.grupo === G.g));
+    if (G.g === "custo_variavel" && v.__cmv != null) { const virt = { id: "__cmv", codigo: "3.2", nome: "Custo dos produtos vendidos (cadastro do PDV+)", grupo: G.g, automatica: "cmv" };
+      let b = blocos.find(x => x.sub && x.sub.codigo === "3.2"); if (!b) { b = { sub: null, contas: [] }; blocos.push(b); } b.contas.unshift(virt); }
+    blocos.forEach(b => b.total = b.contas.reduce((s, c) => s + (v[c.id] || 0), 0));
+    r.grupos[G.g] = { blocos, total: blocos.reduce((s, b) => s + b.total, 0) }; });
+  const t = g => r.grupos[g].total;
+  r.receita = t("receita"); r.margem = r.receita - t("custo_variavel"); r.resultadoOper = r.margem - t("despesa_fixa");
+  r.aposInv = r.resultadoOper - t("investimento"); r.naoOper = t("entrada_nop") - t("saida_nop"); r.final = r.aposInv + r.naoOper;
+  return r;
+}
+function calcularDRE(ini, fim, opc, d) { return montarDRE(valoresDRE(ini, fim, opc, d), d.plano); }
+function mesesDoPeriodo(ini, fim) { const out = []; let m = inicioMes(ini);
+  while (m <= fim && out.length < 36) { out.push([m < ini ? ini : m, fimMes(m) > fim ? fim : fimMes(m), m]); m = addMeses(m, 1); } return out; }
+
+/** Movimentos de uma conta de caixa/banco (vendas do PDV+ que caem nela, contas pagas, transferências e acertos). */
+function movimentosConta(cf, d) {
+  const out = [], fm = {}; d.formas.forEach(f => fm[f.codigo] = f);
+  const ag = {};
+  d.pagamentos.forEach(p => { const f = fm[p.forma]; if (!f || f.conta_financeira_id !== cf.id) return;
+    if (p.categoria === "venda" && ehAPrazo(f)) return;
+    const dt = addDias(p.data, +f.prazo_dias || 0), k = dt + "|" + p.forma + "|" + p.data;
+    const liq = (+p.valor || 0) * (1 - (+f.taxa_percentual || 0) / 100);
+    (ag[k] = ag[k] || { data: dt, desc: `Vendas PDV+ · ${f.nome}` + (dt !== p.data ? ` (vendas de ${dataBR(p.data).slice(0, 5)})` : ""), valor: 0, origem: "pdv" }).valor += liq; });
+  out.push(...Object.values(ag));
+  const porId = {}; d.plano.forEach(c => porId[c.id] = c);
+  d.lancamentos.forEach(l => { if (!l.pago_em || l.conta_financeira_id !== cf.id) return; const c = porId[l.conta_id], ent = c && ENTRADA[c.grupo];
+    out.push({ data: l.pago_em, desc: l.descricao + (fornPorId(l.fornecedor_id) ? " · " + fornPorId(l.fornecedor_id).nome : ""), valor: (ent ? 1 : -1) * +(l.valor_pago ?? l.valor), origem: "lancamento", ref: l.id, conta: c }); });
+  d.movimentos.forEach(m => {
+    if (m.tipo === "transferencia") {
+      if (m.origem_id === cf.id) out.push({ data: m.data, desc: "Transferência para " + (d.bancos.find(b => b.id === m.destino_id)?.nome || "?") + (m.descricao ? " · " + m.descricao : ""), valor: -m.valor, origem: "mov", ref: m.id });
+      if (m.destino_id === cf.id) out.push({ data: m.data, desc: "Transferência de " + (d.bancos.find(b => b.id === m.origem_id)?.nome || "?") + (m.descricao ? " · " + m.descricao : ""), valor: +m.valor, origem: "mov", ref: m.id });
+    } else if (m.destino_id === cf.id) out.push({ data: m.data, desc: "Acerto de caixa" + (m.descricao ? " · " + m.descricao : ""), valor: +m.valor, origem: "mov", ref: m.id });
+  });
+  return out.filter(x => x.data > cf.data_saldo).sort((a, b) => a.data.localeCompare(b.data) || b.valor - a.valor);
+}
+function saldoEm(cf, data, d, movs) { return (movs || movimentosConta(cf, d)).filter(x => x.data <= data).reduce((s, x) => s + x.valor, +cf.saldo_inicial || 0); }
+/* ---------------------------------------------------------------- acesso aos dados */
+function bancoNuvem() {
+  const sb = supabase.createClient(CONFIG.supabaseUrl, CONFIG.supabaseAnon);
+  const ok = ({ data, error }) => { if (error) throw new Error(traduzir(error.message)); return data; };
+  return {
+    modo: "nuvem", sb,
+    async sessao() { return ok(await sb.auth.getSession()).session; },
+    async entrar(email, senha) { return ok(await sb.auth.signInWithPassword({ email, password: senha })); },
+    async criarConta(email, senha) { return ok(await sb.auth.signUp({ email, password: senha, options: { emailRedirectTo: location.origin + location.pathname } })); },
+    async esqueci(email) { return ok(await sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname })); },
+    async novaSenha(senha) { return ok(await sb.auth.updateUser({ password: senha })); },
+    async sair() { await sb.auth.signOut(); },
+    async lista(t, eq = {}) { const tudo = [];
+      for (let de = 0; ; de += 1000) { let q = sb.from(t).select("*").range(de, de + 999);
+        for (const k in eq) q = q.eq(k, eq[k]); const lote = ok(await q); tudo.push(...lote); if (lote.length < 1000) break; }
+      return tudo; },
+    async inserir(t, linhas) { return ok(await sb.from(t).insert(linhas).select()); },
+    async atualizar(t, filtro, dados) { return ok(await sb.from(t).update(dados).match(filtro).select()); },
+    async excluir(t, filtro) { return ok(await sb.from(t).delete().match(filtro)); },
+    async rpc(n, a) { return ok(await sb.rpc(n, a)); },
+  };
+}
+function traduzir(m) {
+  const t = { "Invalid login credentials": "E-mail ou senha incorretos.", "Email not confirmed": "Confirme seu e-mail: abra a mensagem que enviamos e clique no link.",
+    "User already registered": "Já existe uma conta com esse e-mail. Use \"Entrar\".", "Password should be at least 6 characters": "A senha precisa ter pelo menos 6 caracteres." };
+  for (const k in t) if (m && m.includes(k)) return t[k];
+  if (m && /violates foreign key/.test(m)) return "Esse item está sendo usado em lançamentos. Desative em vez de excluir.";
+  return m || "Algo deu errado. Tente de novo.";
+}
+
+/** Banco de demonstração: tudo na memória, some ao recarregar a página. */
+function planoNovo(E) { return PLANO_PADRAO.map(([codigo, nome, grupo, sintetica, automatica]) => ({ id: uid(), empresa_id: E, codigo, nome, grupo, sintetica, automatica: automatica || null, ativa: true })); }
+function bancoDemo() {
+  const E = "demo-empresa";
+  const base = DEMO_RESUMO || resumoFicticio();
+  const primeiro = base.vendas_dia.reduce((m, x) => x.data < m ? x.data : m, "9999");
+  const T = { empresas: [{ id: E, nome: base.empresa || "Pizzaria Exemplo", cnpj: base.cnpj || "", chave_sync: "a1b2c3d4e5f6a1b2c3d4e5f6", ultima_sync: new Date().toISOString(), versao_sync: "1.0", ativa: true }],
+    plano_contas: planoNovo(E),
+    contas_financeiras: [{ id: uid(), empresa_id: E, nome: "Caixa dinheiro", tipo: "caixa", saldo_inicial: 300, data_saldo: addDias(primeiro, -1), ativa: true },
+      { id: uid(), empresa_id: E, nome: "Santander", tipo: "banco", saldo_inicial: 6000, data_saldo: addDias(primeiro, -1), ativa: true }],
+    vendas_dia: base.vendas_dia.map(x => ({ ...x, empresa_id: E })), pagamentos_dia: base.pagamentos_dia.map(x => ({ ...x, empresa_id: E })),
+    fornecedores: [], lancamentos: [], movimentos: [] };
+  const cod = c => T.plano_contas.find(x => x.codigo === c).id, [caixa, banco] = T.contas_financeiras.map(b => b.id);
+  T.formas_pagamento = [[0, "Dinheiro", "1.1.7", caixa], [1, "Cartão de crédito", "1.1.2", banco, 3.19, 30], [2, "Crediário", "1.1.4", null], [3, "Pix", "1.1.1", banco, 0.99, 0],
+    [4, "Cartão de débito", "1.1.2", banco, 1.39, 1], [5, "Forma 5", "1.1.8", banco], [6, "Forma 6", "1.1.8", banco], [7, "Forma 7", "1.1.8", banco]]
+    .map(([codigo, nome, c, cf, taxa, prazo]) => ({ empresa_id: E, codigo, nome, conta_receita_id: cod(c), conta_financeira_id: cf, taxa_percentual: taxa || 0, prazo_dias: prazo || 0, a_prazo: codigo === 2 }));
+  exemplosDemo(T, E, base);
+  const casa = (l, f) => Object.keys(f).every(k => l[k] === f[k]);
+  return {
+    modo: "demo", empresaDemo: E,
+    async sessao() { return { user: { email: "demonstracao@aliber" } }; },
+    async sair() { location.reload(); },
+    async lista(t, eq = {}) { return (T[t] || []).filter(l => casa(l, eq)).map(l => ({ ...l })); },
+    async inserir(t, linhas) { const arr = (Array.isArray(linhas) ? linhas : [linhas]).map(l => ({ id: uid(), criado_em: new Date().toISOString(), ...l }));
+      if (t === "empresas") arr.forEach(e => { e.chave_sync = uid().replace(/-/g, "").slice(0, 24); T.plano_contas.push(...planoNovo(e.id)); });
+      if (t === "contas_financeiras") arr.forEach(c => { c.ativa = c.ativa ?? true; c.data_saldo = c.data_saldo || hoje(); c.saldo_inicial = c.saldo_inicial || 0; });
+      T[t].push(...arr); return arr.map(l => ({ ...l })); },
+    async atualizar(t, f, dados) { const out = []; T[t].forEach(l => { if (casa(l, f)) { Object.assign(l, dados); out.push({ ...l }); } }); return out; },
+    async excluir(t, f) { if (t === "plano_contas" && T.lancamentos.some(l => l.conta_id === f.id)) throw new Error(traduzir("violates foreign key"));
+      T[t] = T[t].filter(l => !casa(l, f)); return []; },
+    async rpc(n, a) { if (n === "eh_admin") return true; if (n === "usuarios_da_empresa") return [{ email: "dono@" + (a.empresa === E ? "village" : "cliente") + ".com.br", papel: "dono" }];
+      if (n === "vincular_usuario" || n === "desvincular_usuario") return "ok"; return null; },
+  };
+}
+function resumoFicticio() {
+  const vendas_dia = [], pagamentos_dia = []; let s = 7; const r = () => (s = (s * 9301 + 49297) % 233280) / 233280;
+  const fim = addDias(hoje(), -1);
+  for (let i = 75; i >= 0; i--) { const data = addDias(fim, -i); const dow = paraData(data).getDay(); if (dow === 1) continue;
+    const peso = dow === 5 || dow === 6 ? 1.6 : dow === 0 ? 1.3 : 0.8;
+    [[1, 6], [2, 14], [3, 12]].forEach(([tipo, base]) => { const qtd = Math.round(base * peso * (0.7 + r() * 0.6)); const itens = qtd * (60 + r() * 40);
+      const ent = tipo === 2 ? qtd * 5 : 0; const total = itens + ent;
+      vendas_dia.push({ data, tipo_venda: tipo, qtd, itens: +itens.toFixed(2), taxa_entrega: ent, taxa_servico: 0, acrescimos: 0, descontos: 0, total: +total.toFixed(2), custo: +(itens * 0.38).toFixed(2), canceladas_qtd: r() < .3 ? 1 : 0, canceladas_valor: 0 });
+      [[0, .25], [1, .33], [3, .24], [4, .18]].forEach(([forma, p]) => pagamentos_dia.push({ data, categoria: "venda", forma, qtd: Math.max(1, Math.round(qtd * p)), valor: +(total * p).toFixed(2) })); }); }
+  return { empresa: "Pizzaria Exemplo", vendas_dia, pagamentos_dia };
+}
+function exemplosDemo(T, E, base) {
+  const conta = c => T.plano_contas.find(x => x.codigo === c).id;
+  const [caixa, banco] = T.contas_financeiras.map(b => b.id);
+  const F = {}; [["Atacadão Ubá", "3.2.1", "12.345.678/0001-90"], ["Moinho Zona da Mata", "3.2.2"], ["Laticínios Serra", "3.2.3"], ["Distribuidora Bebidas Zona da Mata", "3.2.1"],
+    ["Supergasbras", "4.2.5"], ["Imobiliária Central", "4.2.4"], ["Cemig", "4.2.3"], ["Copasa", "4.2.5"], ["Vivo Empresas", "4.2.2"], ["Escritório Contábil Ubá", "4.2.11"], ["Aliber Informática", "4.2.12"]]
+    .forEach(([nome, c, doc]) => { const f = { id: uid(), empresa_id: E, nome, cpf_cnpj: doc || "", fone: "", email: "", conta_padrao_id: conta(c), obs: "Exemplo", ativo: true }; T.fornecedores.push(f); F[nome] = f.id; });
+  const ultimo = base.vendas_dia.reduce((m, x) => x.data > m ? x.data : m, "0000") || hoje();
+  const mes = inicioMes(ultimo), ant = addMeses(mes, -1), prox = addMeses(mes, 1), hj = hoje();
+  const L = (descricao, c, valor, venc, opc = {}) => { const pago = opc.pago === undefined ? venc < hj : opc.pago;
+    T.lancamentos.push({ id: uid(), empresa_id: E, descricao, fornecedor_id: opc.f ? F[opc.f] : null, conta_id: conta(c), conta_financeira_id: opc.cf === undefined ? banco : opc.cf,
+      valor, competencia: opc.comp || venc, vencimento: venc, pago_em: pago ? (opc.pagoEm || venc) : null, valor_pago: pago ? (opc.vp ?? valor) : null,
+      documento: opc.doc || "", parcela: opc.parc || null, parcelas: opc.parcs || null, grupo_parcelas: null, obs: "", criado_em: new Date().toISOString() }); };
+  const d = (m, dia) => m.slice(0, 8) + pad(dia);
+  [ant, mes].forEach((m, i) => {
+    const k = i ? 1 : 0.92;
+    L("Aluguel do salão", "4.2.4", 2500, d(m, 5), { f: "Imobiliária Central" });
+    L("Conta de luz", "4.2.3", Math.round(760 * k), d(m, 15), { f: "Cemig" });
+    L("Conta de água", "4.2.5", 186, d(m, 20), { f: "Copasa", pago: i ? false : undefined, pagoEm: d(m, 25), vp: 191.4 });
+    L("Internet e telefone", "4.2.2", 149.9, d(m, 10), { f: "Vivo Empresas" });
+    L("Salários da equipe", "4.3.1", 4800, d(m, 5), { comp: addDias(d(m, 5), -10) });
+    L("INSS", "4.3.6", 420, d(m, 20)); L("FGTS", "4.3.4", 270, d(m, 7));
+    L("Motoboys (quinzena)", "4.3.16", 520, d(m, 15), { cf: caixa }); L("Motoboys (quinzena)", "4.3.16", 560, fimMes(m), { cf: caixa });
+    L("Honorários contábeis", "4.2.11", 450, d(m, 10), { f: "Escritório Contábil Ubá" });
+    L("Mensalidade do sistema", "4.2.12", 149, d(m, 10), { f: "Aliber Informática" });
+    L("Aluguel da maquininha", "4.6.3", 89.9, d(m, 12));
+    L("DAS - Simples Nacional", "3.1.1", Math.round(1180 * k), d(m, 20), { comp: addDias(d(m, 1), -1) });
+    L("Compra de insumos", "3.2.1", 2180, d(m, 6), { f: "Atacadão Ubá", doc: "NF 45122" });
+    L("Farinha de trigo", "3.2.2", 980, d(m, 11), { f: "Moinho Zona da Mata", doc: "NF 1188" });
+    L("Queijos e frios", "3.2.3", 1625, d(m, 12), { f: "Laticínios Serra" });
+    L("Bebidas", "3.2.1", 1310, d(m, 22), { f: "Distribuidora Bebidas Zona da Mata" });
+    L("Gás P45", "4.2.5", 455, d(m, 9), { f: "Supergasbras", cf: caixa }); L("Gás P45", "4.2.5", 455, d(m, 23), { f: "Supergasbras", cf: caixa });
+    L("Impulsionamento Instagram", "5.1.2", 300, d(m, 3));
+    L("Tarifa do pacote de serviços", "4.6.1", 42.9, fimMes(m));
+    L("Distribuição de lucros", "6.1.3", 3000, fimMes(m), { pago: i ? false : undefined });
+  });
+  L("Compra de insumos", "3.2.1", 2050, addDias(hj, 3), { f: "Atacadão Ubá", doc: "NF 45611", comp: hj, pago: false });
+  L("Aluguel do salão", "4.2.4", 2500, d(prox, 5), { f: "Imobiliária Central", pago: false });
+  L("Salários da equipe", "4.3.1", 4800, d(prox, 5), { comp: fimMes(mes), pago: false });
+  L("Forno elétrico", "5.2.2", 620, d(prox, 12), { pago: false, parc: 3, parcs: 10 });
+  const ini = T.contas_financeiras[0].data_saldo;
+  [7, 14, 21].forEach(n => { const dt = addDias(ini, n); if (dt <= hj) T.movimentos.push({ id: uid(), empresa_id: E, data: dt, tipo: "transferencia", origem_id: caixa, destino_id: banco, valor: 1500, descricao: "Depósito do caixa" }); });
+  const dt = addDias(ini, 10); if (dt <= hj) T.movimentos.push({ id: uid(), empresa_id: E, data: dt, tipo: "acerto", origem_id: null, destino_id: caixa, valor: -12.5, descricao: "Diferença na contagem" });
+}
+
+/* ---------------------------------------------------------------- estado */
+const S = {
+  db: null, admin: false, email: "", empresas: [], empresaId: null,
+  d: { plano: [], fornecedores: [], lancamentos: [], formas: [], vendas: [], pagamentos: [], bancos: [], movimentos: [] },
+  periodo: lembrar("periodo", { preset: "mes" }),
+  dre: Object.assign({ regime: "competencia", cmv: "compras", mensal: false, zeradas: false, fechados: [] }, lembrar("dre2", {})),
+  contas: { status: "aberto", tipo: "", busca: "", fornecedor: "", conta: "", de: "", ate: "" },
+  banco: { sel: null },
+  view: "resumo",
+};
+function definirPeriodo(preset, ini, fim) {
+  const h = hoje(); const P = S.periodo; P.preset = preset;
+  if (preset === "mes") { P.ini = inicioMes(h); P.fim = fimMes(h); }
+  else if (preset === "mespassado") { const m = addMeses(inicioMes(h), -1); P.ini = m; P.fim = fimMes(m); }
+  else if (preset === "30d") { P.ini = addDias(h, -29); P.fim = h; }
+  else if (preset === "ano") { P.ini = h.slice(0, 4) + "-01-01"; P.fim = h.slice(0, 4) + "-12-31"; }
+  else { P.ini = ini || P.ini || inicioMes(h); P.fim = fim || P.fim || fimMes(h); if (P.fim < P.ini) [P.ini, P.fim] = [P.fim, P.ini]; }
+  guardar("periodo", P);
+}
+const opcDRE = () => ({ regime: S.dre.regime, cmv: S.dre.cmv });
+const contaPorId = id => S.d.plano.find(c => c.id === id);
+const fornPorId = id => S.d.fornecedores.find(f => f.id === id);
+const bancoPorId = id => S.d.bancos.find(b => b.id === id);
+const empresa = () => S.empresas.find(e => e.id === S.empresaId);
+const ehEntrada = l => !!ENTRADA[contaPorId(l.conta_id)?.grupo];
+function situacao(l) { const h = hoje(), ent = ehEntrada(l);
+  if (l.pago_em) return { cls: "ok", txt: (ent ? "Recebida " : "Paga ") + dataBR(l.pago_em).slice(0, 5), chave: "paga" };
+  if (l.vencimento < h) return { cls: "bad", txt: ent ? "Atrasada" : "Vencida", chave: "vencida" };
+  if (l.vencimento === h) return { cls: "warn", txt: "Vence hoje", chave: "hoje" };
+  if (l.vencimento <= addDias(h, 7)) return { cls: "warn", txt: "Vence em " + Math.round((paraData(l.vencimento) - paraData(h)) / 864e5) + "d", chave: "breve" };
+  return { cls: "neu", txt: ent ? "A receber" : "A vencer", chave: "avencer" }; }
+
+/* ---------------------------------------------------------------- início */
+async function iniciar() {
+  definirPeriodo(S.periodo.preset, S.periodo.ini, S.periodo.fim);
+  if (CONFIG.supabaseUrl && CONFIG.supabaseAnon) {
+    try { await carregarScript("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"); }
+    catch (e) { $("#app").innerHTML = `<div class="carregando">Não consegui carregar o painel. Verifique a internet e recarregue a página.</div>`; return; }
+    S.db = bancoNuvem();
+    S.db.sb.auth.onAuthStateChange(ev => { if (ev === "PASSWORD_RECOVERY") telaEntrada("nova"); });
+    if (/type=recovery/.test(location.hash)) return;
+    const s = await S.db.sessao().catch(() => null);
+    if (!s) return telaEntrada("entrar");
+    S.email = s.user.email; await depoisDeEntrar();
+  } else { S.db = bancoDemo(); S.email = "demonstração"; await depoisDeEntrar(); }
+}
+function carregarScript(src) { return new Promise((ok, erro) => { const s = document.createElement("script"); s.src = src; s.onload = ok; s.onerror = erro; document.head.appendChild(s); }); }
+async function depoisDeEntrar() {
+  $("#app").innerHTML = `<div class="carregando">Carregando seus dados…</div>`;
+  try {
+    S.admin = !!(await S.db.rpc("eh_admin", {}));
+    S.empresas = (await S.db.lista("empresas")).sort((a, b) => a.nome.localeCompare(b.nome));
+  } catch (e) { $("#app").innerHTML = `<div class="carregando">${esc(e.message)}</div>`; return; }
+  if (!S.empresas.length && !S.admin) return telaSemEmpresa();
+  const salva = lembrar("empresa", null);
+  S.empresaId = S.empresas.some(e => e.id === salva) ? salva : S.empresas[0]?.id || null;
+  if (S.empresaId) await carregarEmpresa();
+  S.view = lerHash(); desenhar();
+}
+async function carregarEmpresa() {
+  const eq = { empresa_id: S.empresaId };
+  const [plano, fornecedores, lancamentos, formas, vendas, pagamentos, bancos, movimentos] = await Promise.all(
+    ["plano_contas", "fornecedores", "lancamentos", "formas_pagamento", "vendas_dia", "pagamentos_dia", "contas_financeiras", "movimentos"].map(t => S.db.lista(t, eq)));
+  S.d = { plano, fornecedores, lancamentos, formas: formas.sort((a, b) => a.codigo - b.codigo), vendas, pagamentos,
+    bancos: bancos.sort((a, b) => (a.tipo === "caixa" ? 0 : 1) - (b.tipo === "caixa" ? 0 : 1) || a.nome.localeCompare(b.nome)), movimentos };
+  if (!S.d.bancos.some(b => b.id === S.banco.sel)) S.banco.sel = S.d.bancos[0]?.id || null;
+}
+const VIEWS = ["resumo", "dre", "contas", "bancos", "fornecedores", "plano", "config", "admin"];
+function lerHash() { const h = location.hash.replace("#", ""); return VIEWS.includes(h) && (h !== "admin" || S.admin) ? h : "resumo"; }
+window.addEventListener("hashchange", () => { if (!S.db || !S.empresaId && !S.admin) return; const v = lerHash(); if (v !== S.view) { S.view = v; desenhar(); } });
+
+/* ---------------------------------------------------------------- telas de acesso */
+function telaEntrada(modo) {
+  const titulo = { entrar: "Entrar", criar: "Criar conta", esqueci: "Recuperar senha", nova: "Nova senha" }[modo];
+  $("#app").innerHTML = `<div class="entrada"><div class="caixa">
+    <div class="marca"><span class="a">Aliber</span><span class="f">Financeiro</span></div>
+    <p>${modo === "criar" ? "Crie sua conta com o e-mail da empresa. Depois a Aliber libera o acesso aos dados da sua loja."
+      : modo === "esqueci" ? "Informe seu e-mail. Vamos mandar um link para você criar uma senha nova."
+      : modo === "nova" ? "Digite a nova senha." : "Plano de contas, contas a pagar e DRE da sua loja, com as vendas do PDV+."}</p>
+    <form data-form="acesso" data-modo="${modo}">
+      ${modo !== "nova" ? `<label class="campo">E-mail<input id="ac-email" type="email" required autocomplete="email"></label>` : ""}
+      ${modo !== "esqueci" ? `<label class="campo">Senha<input id="ac-senha" type="password" required minlength="6" autocomplete="${modo === "entrar" ? "current-password" : "new-password"}"></label>` : ""}
+      <button class="bt pri" type="submit" style="justify-content:center">${titulo}</button>
+    </form>
+    <div class="barra" style="justify-content:space-between">
+      ${modo === "entrar" ? `<button class="bt link" data-acao="acesso" data-modo="criar">Criar conta</button><button class="bt link" data-acao="acesso" data-modo="esqueci">Esqueci a senha</button>`
+        : `<button class="bt link" data-acao="acesso" data-modo="entrar">Voltar para Entrar</button>`}
+    </div></div></div>`;
+}
+async function enviarAcesso(form) {
+  const modo = form.dataset.modo, email = $("#ac-email")?.value.trim(), senha = $("#ac-senha")?.value;
+  const bt = form.querySelector("button[type=submit]"); bt.disabled = true;
+  try {
+    if (modo === "entrar") { const r = await S.db.entrar(email, senha); S.email = r.user.email; await depoisDeEntrar(); }
+    else if (modo === "criar") { const r = await S.db.criarConta(email, senha);
+      if (r.session) { S.email = email; await depoisDeEntrar(); } else { toast("Conta criada. Abra o e-mail que enviamos e clique no link para confirmar."); telaEntrada("entrar"); } }
+    else if (modo === "esqueci") { await S.db.esqueci(email); toast("Enviamos o link para " + email + "."); telaEntrada("entrar"); }
+    else if (modo === "nova") { await S.db.novaSenha(senha); toast("Senha alterada."); history.replaceState(null, "", location.pathname); await depoisDeEntrar(); }
+  } catch (e) { toast(e.message, true); bt.disabled = false; }
+}
+function telaSemEmpresa() {
+  $("#app").innerHTML = `<div class="entrada"><div class="caixa">
+    <div class="marca"><span class="a">Aliber</span><span class="f">Financeiro</span></div>
+    <h2 style="font-size:20px">Falta liberar seu acesso</h2>
+    <p>Sua conta (<b>${esc(S.email)}</b>) foi criada, mas ainda não está ligada a nenhuma loja. Fale com a Aliber Informática e informe este e-mail.</p>
+    <div class="barra"><button class="bt" data-acao="recarregar">Já liberaram, entrar de novo</button><button class="bt link" data-acao="sair">Sair</button></div>
+  </div></div>`;
+}
+
+/* ---------------------------------------------------------------- moldura */
+function desenhar() {
+  const itens = [["resumo", "Resumo"], ["dre", "DRE"], ["contas", "Contas a pagar"], ["bancos", "Caixa e bancos"], ["fornecedores", "Fornecedores"], ["plano", "Plano de contas"], ["config", "Configurações"]];
+  if (S.admin) itens.push(["admin", "Administração"]);
+  $("#app").innerHTML = `<div class="shell">
+    <nav class="nav" aria-label="Menu">
+      <div class="marca"><span class="a">Aliber</span><span class="f">Financeiro</span></div>
+      ${itens.map(([v, t]) => `<a href="#${v}" class="${S.view === v ? "on" : ""}">${icone(v)}${t}</a>`).join("")}
+      <div class="rodape">
+        ${S.empresas.length > 1 ? `<label class="campo" style="color:var(--nav-muted)">Loja<select id="sel-empresa" data-acao-change="empresa">${S.empresas.map(x => `<option value="${x.id}" ${x.id === S.empresaId ? "selected" : ""}>${esc(x.nome)}</option>`).join("")}</select></label>` : ""}
+        <span>${esc(S.email)}</span>
+        <button data-acao="sair">${S.db.modo === "demo" ? "Recomeçar demonstração" : "Sair"}</button>
+        <span>Painel v${VERSAO_PAINEL}</span>
+      </div>
+    </nav>
+    <main class="principal"><div class="miolo" id="conteudo"></div></main></div>`;
+  desenharConteudo();
+}
+function desenharConteudo() {
+  const c = $("#conteudo"); if (!c) return;
+  if (!S.empresaId && S.view !== "admin") { c.innerHTML = `<div class="painel vazio">Nenhuma loja cadastrada ainda. Cadastre a primeira em <a href="#admin">Administração</a>.</div>`; return; }
+  const demo = S.db.modo === "demo" ? `<div class="demo"><b>Demonstração.</b> ${DEMO_RESUMO ? "As vendas são as reais do PDV+ da " + esc(empresa()?.nome) + "; fornecedores, contas, saldos e taxas são exemplos." : "Todos os números são fictícios."} O que você lançar aqui some ao recarregar a página.</div>` : "";
+  c.innerHTML = demo + ({ resumo: vResumo, dre: vDRE, contas: vContas, bancos: vBancos, fornecedores: vFornecedores, plano: vPlano, config: vConfig, admin: vAdmin }[S.view])();
+  if (S.view === "contas") desenharListaContas();
+}
+function cabecalho(titulo, sub, direita = "") {
+  return `<div class="topo"><div><h1>${titulo}</h1>${sub ? `<div class="sub">${sub}</div>` : ""}</div>${direita ? `<div class="barra">${direita}</div>` : ""}</div>`; }
+function seletorPeriodo() {
+  const P = S.periodo; const op = [["mes", "Este mês"], ["mespassado", "Mês passado"], ["30d", "Últimos 30 dias"], ["ano", "Este ano"], ["livre", "Escolher datas"]];
+  return `<div class="periodo"><div class="seg" role="group" aria-label="Período">${op.map(([k, t]) => `<button data-acao="periodo" data-p="${k}" class="${P.preset === k ? "on" : ""}">${t}</button>`).join("")}</div>
+    ${P.preset === "livre" ? `<div class="datas"><input type="date" id="p-ini" value="${P.ini}" data-acao-change="datas" aria-label="Data inicial"><span>até</span><input type="date" id="p-fim" value="${P.fim}" data-acao-change="datas" aria-label="Data final"></div>`
+      : `<span class="nota">${dataBR(P.ini)} a ${dataBR(P.fim)}</span>`}</div>`;
+}
+function infoSync() { const e = empresa(); if (!e) return "";
+  if (!e.ultima_sync) return `Vendas do PDV+: <b>aguardando a primeira sincronização</b>`;
+  const d = new Date(e.ultima_sync); return `Vendas do PDV+ atualizadas em ${d.toLocaleDateString("pt-BR")} às ${d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`; }
+
+/* ---------------------------------------------------------------- RESUMO */
+function vResumo() {
+  const P = S.periodo, d = S.d, r = calcularDRE(P.ini, P.fim, opcDRE(), d), h = hoje();
+  const vend = d.vendas.filter(x => x.data >= P.ini && x.data <= P.fim);
+  const qtd = vend.reduce((s, x) => s + x.qtd, 0), fat = vend.reduce((s, x) => s + +x.total, 0);
+  const canc = vend.reduce((s, x) => s + x.canceladas_qtd, 0);
+  const abertas = d.lancamentos.filter(l => !l.pago_em && !ehEntrada(l));
+  const venc = abertas.filter(l => l.vencimento < h), sem = abertas.filter(l => l.vencimento >= h && l.vencimento <= addDias(h, 7));
+  const soma = a => a.reduce((s, l) => s + +l.valor, 0);
+  const saldos = d.bancos.filter(b => b.ativa).map(b => { const m = movimentosConta(b, d); return { hoje: saldoEm(b, h, d, m), futuro: m.filter(x => x.data > h && x.origem === "pdv").reduce((s, x) => s + x.valor, 0) }; });
+  const saldo = saldos.reduce((s, x) => s + x.hoje, 0), aReceber = saldos.reduce((s, x) => s + x.futuro, 0);
+  return cabecalho("Resumo", esc(empresa()?.nome) + " · " + infoSync(), "") + seletorPeriodo() + `
+  <div class="kpis">
+    <div class="kpi"><span>Faturamento</span><b>${brl(fat)}</b><small>${qtd} vendas · ticket médio ${brl(qtd ? fat / qtd : 0)}</small></div>
+    <div class="kpi destaque"><span>Resultado operacional</span><b class="${r.resultadoOper < 0 ? "neg" : ""}">${brl(r.resultadoOper)}</b><small>margem de contribuição ${pct(r.receita ? r.margem / r.receita : NaN)} · ${S.dre.regime === "caixa" ? "caixa" : "competência"}</small></div>
+    <div class="kpi"><span>Caixa e bancos hoje</span><b class="${saldo < 0 ? "neg" : ""}">${brl(saldo)}</b><small>${aReceber ? brl(aReceber) + " a receber das maquininhas" : d.bancos.length + " conta(s)"}</small></div>
+    <div class="kpi"><span>Contas vencidas</span><b class="${venc.length ? "neg" : ""}">${brl(soma(venc))}</b><small>${brl(soma(sem))} vencem em 7 dias</small></div>
+  </div>
+  <div class="grade">
+    <section class="painel" style="grid-column:1/-1"><h2>Vendas por dia <small>${canc ? canc + " venda(s) cancelada(s) no período" : ""}</small></h2>${graficoDias(vend, P.ini, P.fim)}</section>
+    <section class="painel"><h2>Formas de pagamento</h2>${blocoFormas(P)}</section>
+    <section class="painel"><h2>Próximos vencimentos <small><a href="#contas">ver todas</a></small></h2>${blocoVencimentos(abertas)}</section>
+    <section class="painel"><h2>Resultado do período <small><a href="#dre">abrir DRE</a></small></h2>${miniDRE(r)}</section>
+  </div>`;
+}
+function graficoDias(vend, ini, fim) {
+  const porDia = {}; vend.forEach(x => porDia[x.data] = (porDia[x.data] || 0) + +x.total);
+  let dias = []; for (let dt = ini; dt <= fim && dias.length < 400; dt = addDias(dt, 1)) dias.push(dt);
+  let mensal = false;
+  if (dias.length > 62) { const m = {}; dias.forEach(dt => { const k = inicioMes(dt); m[k] = (m[k] || 0) + (porDia[dt] || 0); }); dias = Object.keys(m); dias.forEach(k => porDia[k] = m[k]); mensal = true; }
+  if (!vend.length) return `<div class="vazio">Nenhuma venda do PDV+ neste período.</div>`;
+  const max = Math.max(1, ...dias.map(k => porDia[k] || 0));
+  const passo = [500, 1000, 2000, 2500, 5000, 10000, 20000, 25000, 50000, 100000, 200000, 500000].find(p => max / p <= 4) || 1000000;
+  const topo = Math.ceil(max / passo) * passo;
+  const W = 900, H = 230, L = 58, B = 26, T = 10, w = (W - L - 8) / dias.length;
+  const y = v => T + (H - T - B) * (1 - v / topo);
+  let g = ""; for (let v = 0; v <= topo; v += passo) g += `<line x1="${L}" x2="${W - 4}" y1="${y(v)}" y2="${y(v)}" stroke="var(--grid)"/><text x="${L - 8}" y="${y(v) + 4}" text-anchor="end">${v >= 1000 ? (v / 1000).toLocaleString("pt-BR") + " mil" : v}</text>`;
+  const cada = Math.ceil(dias.length / 12);
+  const barras = dias.map((k, i) => { const v = porDia[k] || 0, x = L + i * w + w * 0.15, bw = Math.max(1, w * 0.7);
+    const rot = mensal ? mesCurto(k) : k.slice(8) + "/" + k.slice(5, 7);
+    return `<rect x="${x}" y="${y(v)}" width="${bw}" height="${Math.max(0, H - B - y(v))}" rx="2" fill="var(--bar)"><title>${rot}: ${brl(v)}</title></rect>` +
+      (i % cada === 0 ? `<text x="${x + bw / 2}" y="${H - 8}" text-anchor="middle">${rot}</text>` : ""); }).join("");
+  return `<div class="graf"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Faturamento por ${mensal ? "mês" : "dia"}">${g}${barras}</svg></div>`;
+}
+function blocoFormas(P) {
+  const t = {}; S.d.pagamentos.filter(p => p.data >= P.ini && p.data <= P.fim).forEach(p => t[p.forma] = (t[p.forma] || 0) + +p.valor);
+  const tot = Object.values(t).reduce((a, b) => a + b, 0); if (!tot) return `<div class="vazio">Sem recebimentos no período.</div>`;
+  const nome = c => S.d.formas.find(f => f.codigo == c)?.nome || "Forma " + c;
+  return `<div class="formas">${Object.entries(t).sort((a, b) => b[1] - a[1]).map(([c, v]) => `<div class="forma"><span>${esc(nome(c))}</span><b class="num">${brl(v)} <span class="nota">${pct(v / tot)}</span></b><div class="trilho"><i style="width:${(v / tot * 100).toFixed(1)}%"></i></div></div>`).join("")}</div>`;
+}
+function blocoVencimentos(abertas) {
+  const lista = abertas.slice().sort((a, b) => a.vencimento.localeCompare(b.vencimento)).slice(0, 6);
+  if (!lista.length) return `<div class="vazio">Nenhuma conta em aberto. <button class="bt link" data-acao="nova-conta">Lançar uma conta</button></div>`;
+  return `<div class="lista-venc">${lista.map(l => { const s = situacao(l);
+    return `<div><span class="q"><span class="t" title="${esc(l.descricao)}">${esc(l.descricao)}</span><span class="d">${dataBR(l.vencimento)} <span class="pill ${s.cls}">${s.txt}</span></span></span><b class="num">${brl(l.valor)}</b><button class="bt mini" data-acao="pagar" data-id="${l.id}">Pagar</button></div>`; }).join("")}</div>`;
+}
+function miniDRE(r) {
+  const L = [["Receita", r.receita, 0], ["Custos variáveis", -r.grupos.custo_variavel.total, 0], ["Margem de contribuição", r.margem, 1], ["Despesas fixas", -r.grupos.despesa_fixa.total, 0],
+    ["Resultado operacional", r.resultadoOper, 1], ["Investimentos", -r.grupos.investimento.total, 0], ["Não operacionais", r.naoOper, 0], ["Resultado final", r.final, 2]];
+  return `<table><tbody>${L.map(([n, v, b]) => `<tr${b ? ' style="font-weight:700"' : ""}><td>${n}</td><td class="v ${v < 0 && b ? "neg" : ""}">${brl(v)}</td><td class="v nota">${r.receita ? pct(v / r.receita) : ""}</td></tr>`).join("")}</tbody></table>`;
+}
+
+/* ---------------------------------------------------------------- DRE */
+function vDRE() {
+  const P = S.periodo, o = S.dre;
+  const meses = o.mensal ? mesesDoPeriodo(P.ini, P.fim) : [];
+  const colunas = meses.length > 1 ? meses.map(([a, b, m]) => ({ t: mesCurto(m), r: calcularDRE(a, b, opcDRE(), S.d) })) : [];
+  const total = { t: "Total", r: calcularDRE(P.ini, P.fim, opcDRE(), S.d) }; colunas.push(total);
+  const so = colunas.length === 1;
+  const cel = (v, rb) => `<td class="v">${brl(v)}</td>` + (so ? `<td class="p">${rb ? pct(v / rb) : ""}</td>` : "");
+  const linhaTotal = (nome, k, final) => `<tr class="total${final ? " final" : ""}"><td><span class="sinal">=</span>${nome}</td>${colunas.map(c => cel(c.r[k], c.r.receita)).join("")}</tr>`;
+  const valor = (c, id) => c.r.v[id] || 0;
+  const grupo = (g, sinal) => { const G = GRUPOS.find(x => x.g === g), fechado = o.fechados.includes(g);
+    let h = `<tr class="grupo${fechado ? " fechado" : ""}" data-acao="dobrar" data-g="${g}"><td><span class="sinal">${sinal}</span><span class="cod">${G.cod}</span> ${G.nome}</td>${colunas.map(c => cel(c.r.grupos[g].total, c.r.receita)).join("")}</tr>`;
+    if (fechado) return h;
+    total.r.grupos[g].blocos.forEach((b, bi) => {
+      const zeroBloco = colunas.every(c => !c.r.grupos[g].blocos[bi].total);
+      if (zeroBloco && !o.zeradas) return;
+      const chave = b.sub ? b.sub.codigo : g + "-soltas", mostraSub = b.sub && b.sub.codigo !== G.cod, subFechado = o.fechados.includes(chave);
+      if (mostraSub) h += `<tr class="sub${subFechado ? " fechado" : ""}" data-acao="dobrar" data-g="${esc(chave)}"><td><span class="cod">${esc(b.sub.codigo)}</span> ${esc(b.sub.nome)}</td>${colunas.map(c => cel(c.r.grupos[g].blocos[bi].total, c.r.receita)).join("")}</tr>`;
+      if (mostraSub && subFechado) return;
+      b.contas.forEach(ct => { const zero = colunas.every(c => !valor(c, ct.id)); if (zero && !o.zeradas) return;
+        const tag = ct.automatica === "cmv" ? "cadastro" : ct.automatica === "taxas" ? "automática" : ["juros_pagos", "desconto_obtido", "juros_recebidos"].includes(ct.automatica) ? "automática" : S.d.formas.some(f => f.conta_receita_id === ct.id) ? "PDV+" : "";
+        h += `<tr class="conta${zero ? " zero" : ""}${mostraSub ? " n3" : ""}"><td><span class="cod">${esc(ct.codigo)}</span> ${esc(ct.nome)}${tag ? ` <span class="pill pdv">${tag}</span>` : ""}</td>${colunas.map(c => cel(valor(c, ct.id), c.r.receita)).join("")}</tr>`; });
+    });
+    return h; };
+  const cab = `<tr><th>Conta</th>${colunas.map(c => `<th class="v">${c.t}</th>` + (so ? `<th class="v">% receita</th>` : "")).join("")}</tr>`;
+  const corpo = grupo("receita", "+") + grupo("custo_variavel", "−") + linhaTotal("MARGEM DE CONTRIBUIÇÃO", "margem")
+    + grupo("despesa_fixa", "−") + linhaTotal("RESULTADO OPERACIONAL", "resultadoOper", true)
+    + grupo("investimento", "−") + linhaTotal("RESULTADO APÓS INVESTIMENTOS", "aposInv")
+    + grupo("entrada_nop", "+") + grupo("saida_nop", "−") + linhaTotal("RESULTADO FINAL (geração de caixa)", "final", true);
+  const nuvem = S.db.modo === "nuvem";
+  const semTaxa = !S.d.formas.some(f => +f.taxa_percentual);
+  return cabecalho("DRE gerencial", "Demonstração do resultado · " + esc(empresa()?.nome),
+      `<button class="bt" data-acao="copiar-dre">Copiar para o Excel</button>${nuvem ? `<button class="bt" data-acao="baixar-dre">Baixar planilha</button><button class="bt" data-acao="imprimir">Imprimir / PDF</button>` : ""}`)
+    + seletorPeriodo() + `
+    <div class="barra">
+      <div class="seg" role="group" aria-label="Regime"><button data-acao="dre-op" data-k="regime" data-v="competencia" class="${o.regime === "competencia" ? "on" : ""}">Competência</button><button data-acao="dre-op" data-k="regime" data-v="caixa" class="${o.regime === "caixa" ? "on" : ""}">Caixa</button></div>
+      <div class="seg" role="group" aria-label="Custo dos insumos"><button data-acao="dre-op" data-k="cmv" data-v="compras" class="${o.cmv === "compras" ? "on" : ""}">Insumos pelas compras</button><button data-acao="dre-op" data-k="cmv" data-v="cadastro" class="${o.cmv === "cadastro" ? "on" : ""}">Insumos pelo cadastro</button></div>
+      <label class="check"><input type="checkbox" id="dre-mensal" data-acao-change="dre-check" data-k="mensal" ${o.mensal ? "checked" : ""}> Mês a mês</label>
+      <label class="check"><input type="checkbox" id="dre-zeradas" data-acao-change="dre-check" data-k="zeradas" ${o.zeradas ? "checked" : ""}> Mostrar contas zeradas</label>
+    </div>
+    <div class="tabela"><table class="dre" id="tabela-dre"><thead>${cab}</thead><tbody>${corpo}</tbody></table></div>
+    <p class="nota">${o.regime === "competencia" ? "<b>Competência:</b> vendas pela data da venda (por forma de pagamento) e contas pelo mês a que se referem (campo Competência), pagas ou não." : "<b>Caixa:</b> só o que entrou e saiu de fato: vendas quando o dinheiro cai (cartão no prazo da maquininha, crediário quando o cliente paga) e contas pela data do pagamento."}
+    ${o.cmv === "compras" ? " Os custos com insumos (3.2) são as compras lançadas." : " Os custos com insumos (3.2) usam o preço de custo cadastrado em cada produto do PDV+; as compras lançadas no 3.2 ficam fora para não contar duas vezes."}
+    Juros e descontos ao pagar uma conta vão sozinhos para 6.1.5 e 6.2.5.${semTaxa ? ' A taxa de cartões (3.1.3) aparece quando você informar as taxas em <a href="#config">Configurações</a>.' : ""}</p>`;
+}
+function tabelaDRETexto(sep) { return [...document.querySelectorAll("#tabela-dre tr")].map(tr => [...tr.children].map(td => td.innerText.replace(/^[▾+−=]\s*/, "").replace(/\s+/g, " ").trim()).join(sep)).join("\n"); }
+
+/* ---------------------------------------------------------------- CONTAS A PAGAR */
+function vContas() {
+  const C = S.contas;
+  return cabecalho("Contas a pagar", "Lance as despesas e as entradas avulsas, acompanhe o vencimento e dê baixa quando pagar ou receber.", `<button class="bt" data-acao="nova-entrada">+ Entrada a receber</button><button class="bt pri" data-acao="nova-conta">+ Nova conta</button>`) + `
+    <div class="kpis" id="totais-contas"></div>
+    <div class="barra">
+      <div class="seg" role="group" aria-label="Situação">${[["aberto", "Em aberto"], ["vencidas", "Vencidas"], ["pagas", "Pagas"], ["todas", "Todas"]].map(([k, t]) => `<button data-acao="contas-status" data-v="${k}" class="${C.status === k ? "on" : ""}">${t}</button>`).join("")}</div>
+      <div class="seg" role="group" aria-label="Tipo">${[["", "Tudo"], ["saida", "Saídas"], ["entrada", "Entradas"]].map(([k, t]) => `<button data-acao="contas-tipo" data-v="${k}" class="${C.tipo === k ? "on" : ""}">${t}</button>`).join("")}</div>
+      <input type="search" id="c-busca" placeholder="Buscar descrição, fornecedor ou documento" value="${esc(C.busca)}" data-acao-input="contas-busca" style="flex:1 1 220px;width:auto">
+    </div>
+    <div class="barra">
+      <select id="c-forn" data-acao-change="contas-filtro" data-k="fornecedor" style="flex:0 1 210px;width:auto"><option value="">Todos os fornecedores</option>${S.d.fornecedores.slice().sort((a, b) => a.nome.localeCompare(b.nome)).map(f => `<option value="${f.id}" ${C.fornecedor === f.id ? "selected" : ""}>${esc(f.nome)}</option>`).join("")}</select>
+      <select id="c-conta" data-acao-change="contas-filtro" data-k="conta" style="flex:0 1 260px;width:auto"><option value="">Todas as contas do plano</option>${opcoesPlano(C.conta, { todas: true })}</select>
+      <span class="nota">Vencimento de</span><input type="date" id="c-de" value="${C.de}" data-acao-change="contas-filtro" data-k="de" style="width:150px"><span class="nota">até</span><input type="date" id="c-ate" value="${C.ate}" data-acao-change="contas-filtro" data-k="ate" style="width:150px">${C.de || C.ate ? `<button class="bt link" data-acao="contas-limpar-datas">limpar datas</button>` : ""}</div>
+    <div class="tabela" id="lista-contas"></div>`;
+}
+function filtrarContas() {
+  const C = S.contas, h = hoje(), b = C.busca.trim().toLowerCase();
+  const doSub = C.conta && contaPorId(C.conta)?.sintetica ? contaPorId(C.conta).codigo + "." : null;
+  return S.d.lancamentos.filter(l => {
+    if (C.status === "aberto" && l.pago_em) return false;
+    if (C.status === "vencidas" && (l.pago_em || l.vencimento >= h)) return false;
+    if (C.status === "pagas" && !l.pago_em) return false;
+    if (C.tipo && (C.tipo === "entrada") !== ehEntrada(l)) return false;
+    if (C.fornecedor && l.fornecedor_id !== C.fornecedor) return false;
+    if (C.conta && (doSub ? !(contaPorId(l.conta_id)?.codigo || "").startsWith(doSub) : l.conta_id !== C.conta)) return false;
+    if (C.de && l.vencimento < C.de) return false;
+    if (C.ate && l.vencimento > C.ate) return false;
+    if (b && !`${l.descricao} ${fornPorId(l.fornecedor_id)?.nome || ""} ${l.documento || ""}`.toLowerCase().includes(b)) return false;
+    return true;
+  }).sort((a, b) => C.status === "pagas" ? (b.pago_em || "").localeCompare(a.pago_em || "") : a.vencimento.localeCompare(b.vencimento));
+}
+function desenharListaContas() {
+  const lista = filtrarContas(), h = hoje(), soma = a => a.reduce((s, l) => s + +l.valor, 0);
+  const abertas = S.d.lancamentos.filter(l => !l.pago_em && !ehEntrada(l)), aReceber = S.d.lancamentos.filter(l => !l.pago_em && ehEntrada(l));
+  const mes = S.d.lancamentos.filter(l => l.pago_em && l.pago_em.slice(0, 7) === h.slice(0, 7) && !ehEntrada(l));
+  const tot = $("#totais-contas");
+  if (tot) tot.innerHTML = `<div class="kpi"><span>A pagar em aberto</span><b>${brl(soma(abertas))}</b><small>${abertas.length} conta(s)</small></div>
+    <div class="kpi"><span>Vencidas</span><b class="${abertas.some(l => l.vencimento < h) ? "neg" : ""}">${brl(soma(abertas.filter(l => l.vencimento < h)))}</b><small>${abertas.filter(l => l.vencimento < h).length} conta(s)</small></div>
+    <div class="kpi"><span>Pago neste mês</span><b>${brl(mes.reduce((s, l) => s + +(l.valor_pago ?? l.valor), 0))}</b><small>${mes.length} conta(s)</small></div>
+    <div class="kpi"><span>Entradas a receber</span><b>${brl(soma(aReceber))}</b><small>${aReceber.length} lançamento(s)</small></div>`;
+  const el = $("#lista-contas"); if (!el) return;
+  if (!lista.length) { el.innerHTML = `<div class="vazio">Nenhum lançamento com esses filtros. ${S.d.lancamentos.length ? "" : '<br><button class="bt pri" data-acao="nova-conta" style="margin-top:10px">Lançar a primeira conta</button>'}</div>`; return; }
+  el.innerHTML = `<table><thead><tr><th>Vencimento</th><th>Descrição</th><th>Conta</th><th class="v">Valor</th><th>Situação</th><th></th></tr></thead><tbody>${lista.map(l => { const s = situacao(l), c = contaPorId(l.conta_id), f = fornPorId(l.fornecedor_id), ent = ehEntrada(l), cf = bancoPorId(l.conta_financeira_id);
+    return `<tr><td class="num">${dataBR(l.vencimento)}</td>
+      <td>${ent ? '<span class="pill ok">entrada</span> ' : ""}${esc(l.descricao)}${l.parcelas > 1 ? ` <span class="nota">(${l.parcela}/${l.parcelas})</span>` : ""}<span class="sec">${esc([f?.nome, l.documento].filter(Boolean).join(" · ")) || "&nbsp;"}</span></td>
+      <td><span class="cod">${esc(c?.codigo || "")}</span> ${esc(c?.nome || "")}<span class="sec">competência ${mesCurto(l.competencia)}${cf ? " · " + esc(cf.nome) : ""}</span></td>
+      <td class="v ${ent ? "pos" : ""}">${brl(l.valor)}${l.pago_em && +l.valor_pago !== +l.valor ? `<span class="sec">${ent ? "recebido" : "pago"} ${brl(l.valor_pago)}</span>` : ""}</td>
+      <td><span class="pill ${s.cls}">${s.txt}</span></td>
+      <td class="acoes">${l.pago_em ? `<button class="bt mini" data-acao="estornar" data-id="${l.id}">Desfazer</button>` : `<button class="bt mini azul" data-acao="pagar" data-id="${l.id}">${ent ? "Receber" : "Pagar"}</button>`}
+        <button class="bt mini" data-acao="editar-conta" data-id="${l.id}">Editar</button><button class="bt mini perigo" data-acao="excluir-conta" data-id="${l.id}">Excluir</button></td></tr>`; }).join("")}</tbody></table>`;
+}
+/** <option> das contas do plano, agrupadas por subgrupo. opc.entrada: só receitas/entradas; opc.saida: só saídas; opc.todas: inclui subgrupos (filtro). */
+function opcoesPlano(sel, opc = {}) {
+  return GRUPOS.filter(G => opc.entrada ? ENTRADA[G.g] : opc.saida ? !ENTRADA[G.g] : true).map(G => arvore(S.d.plano.filter(c => c.grupo === G.g)).map(b => {
+    const cs = b.contas.filter(c => c.ativa || c.id === sel); if (!cs.length) return "";
+    const rot = b.sub ? `${b.sub.codigo} ${b.sub.nome}` : G.nome;
+    const sub = opc.todas && b.sub ? `<option value="${b.sub.id}" ${b.sub.id === sel ? "selected" : ""}>${esc(b.sub.codigo + " " + b.sub.nome)} (todas)</option>` : "";
+    return `<optgroup label="${esc(rot)}">${sub}${cs.map(c => `<option value="${c.id}" ${c.id === sel ? "selected" : ""}>${esc(c.codigo + " " + c.nome)}</option>`).join("")}</optgroup>`; }).join("")).join("");
+}
+const opcoesBancos = (sel, vazio = "(não informar)") => `<option value="">${vazio}</option>` + S.d.bancos.filter(b => b.ativa || b.id === sel).map(b => `<option value="${b.id}" ${b.id === sel ? "selected" : ""}>${esc(b.nome)}</option>`).join("");
+const bancoPadrao = () => (S.d.bancos.find(b => b.ativa && b.tipo === "banco") || S.d.bancos.find(b => b.ativa))?.id || "";
+function formConta(l, entrada) {
+  const novo = !l; l = l || { vencimento: hoje(), competencia: hoje() };
+  if (!novo) entrada = ehEntrada(l);
+  const fs = S.d.fornecedores.filter(f => f.ativo || f.id === l.fornecedor_id).sort((a, b) => a.nome.localeCompare(b.nome));
+  abrirModal(novo ? (entrada ? "Nova entrada a receber" : "Nova conta a pagar") : (entrada ? "Editar entrada" : "Editar conta"), `
+    <label class="campo">Descrição<input type="text" id="f-desc" required value="${esc(l.descricao)}" placeholder="${entrada ? "Ex.: Empréstimo, Venda de equipamento usado" : "Ex.: Compra de insumos, Conta de luz"}"></label>
+    <div class="duas">
+      <label class="campo">${entrada ? "De quem (opcional)" : "Fornecedor"}<select id="f-forn" data-acao-change="forn-conta"><option value="">(sem fornecedor)</option>${fs.map(f => `<option value="${f.id}" ${f.id === l.fornecedor_id ? "selected" : ""}>${esc(f.nome)}</option>`).join("")}</select></label>
+      <label class="campo">Conta do plano<select id="f-conta" required><option value="">Escolha…</option>${opcoesPlano(l.conta_id, entrada ? { entrada: true } : { saida: true })}</select></label>
+    </div>
+    <div class="duas">
+      <label class="campo">${novo ? "Valor total" : "Valor"}<input type="text" inputmode="decimal" id="f-valor" required value="${l.valor != null ? numBR(l.valor) : ""}" placeholder="0,00"></label>
+      <label class="campo">Documento (nota, boleto)<input type="text" id="f-doc" value="${esc(l.documento)}"></label>
+    </div>
+    <div class="duas">
+      <label class="campo">${novo ? "1º vencimento" : "Vencimento"}<input type="date" id="f-venc" required value="${l.vencimento}"></label>
+      <label class="campo">Competência (mês a que se refere)<input type="date" id="f-comp" required value="${l.competencia}"></label>
+    </div>
+    <label class="campo">${entrada ? "Recebe em (caixa ou banco)" : "Paga com (caixa ou banco)"}<select id="f-cf">${opcoesBancos(novo ? bancoPadrao() : l.conta_financeira_id)}</select></label>
+    ${novo ? `<div class="duas">
+      <label class="campo">Repetir<select id="f-rep"><option value="1">Não, é um lançamento só</option><option value="parcelar">Parcelar o valor</option><option value="mensal">Repetir todo mês (mesmo valor)</option></select></label>
+      <label class="campo">Quantidade de meses / parcelas<input type="number" id="f-qtd" min="1" max="60" value="1"></label></div>
+      <label class="check"><input type="checkbox" id="f-pago"> Já está ${entrada ? "recebida" : "paga"} (dar baixa no vencimento)</label>` : ""}
+    <label class="campo">Observação<textarea id="f-obs" rows="2">${esc(l.obs)}</textarea></label>`, async () => {
+    const valor = lerNum($("#f-valor").value); if (!(valor > 0)) throw new Error("Informe um valor maior que zero.");
+    if (!$("#f-conta").value) throw new Error("Escolha a conta do plano.");
+    const dados = { descricao: $("#f-desc").value.trim(), fornecedor_id: $("#f-forn").value || null, conta_id: $("#f-conta").value, conta_financeira_id: $("#f-cf").value || null,
+      documento: $("#f-doc").value.trim(), obs: $("#f-obs").value.trim() };
+    const venc = $("#f-venc").value, comp = $("#f-comp").value;
+    if (!novo) { const [x] = await S.db.atualizar("lancamentos", { id: l.id }, { ...dados, valor, vencimento: venc, competencia: comp });
+      Object.assign(l, x || { ...dados, valor, vencimento: venc, competencia: comp }); toast("Lançamento alterado."); return; }
+    const rep = $("#f-rep").value, n = rep === "1" ? 1 : Math.max(1, Math.min(60, parseInt($("#f-qtd").value) || 1)), pago = $("#f-pago").checked;
+    const grupo = n > 1 ? uid() : null; const linhas = [];
+    let resto = Math.round(valor * 100);
+    for (let i = 0; i < n; i++) {
+      let v = valor; if (rep === "parcelar") { const c = i === n - 1 ? resto : Math.floor(Math.round(valor * 100) / n); resto -= c; v = c / 100; }
+      const vi = addMeses(venc, i);
+      linhas.push({ empresa_id: S.empresaId, ...dados, valor: v, vencimento: vi, competencia: rep === "parcelar" ? comp : addMeses(comp, i),
+        pago_em: pago ? vi : null, valor_pago: pago ? v : null, parcela: n > 1 ? i + 1 : null, parcelas: n > 1 ? n : null, grupo_parcelas: grupo });
+    }
+    const novas = await S.db.inserir("lancamentos", linhas); S.d.lancamentos.push(...novas);
+    toast(n > 1 ? `${n} lançamentos criados.` : "Lançamento criado.");
+  });
+}
+function formPagar(l) {
+  const ent = ehEntrada(l);
+  abrirModal(ent ? "Registrar recebimento" : "Dar baixa", `<p style="margin:0">${esc(l.descricao)} · vencimento ${dataBR(l.vencimento)} · <b>${brl(l.valor)}</b></p>
+    <div class="duas"><label class="campo">Data do ${ent ? "recebimento" : "pagamento"}<input type="date" id="f-pg-data" required value="${hoje()}"></label>
+    <label class="campo">Valor ${ent ? "recebido" : "pago"} (com juros ou desconto)<input type="text" inputmode="decimal" id="f-pg-valor" required value="${numBR(l.valor)}"></label></div>
+    <label class="campo">${ent ? "Entrou em" : "Saiu de"}<select id="f-pg-cf">${opcoesBancos(l.conta_financeira_id || bancoPadrao())}</select></label>
+    <p class="nota" style="margin:0">Se o valor for diferente, a diferença vai sozinha para ${ent ? "6.2.6 Receita de Juros" : "6.1.5 Juros de atraso (a mais) ou 6.2.5 Desconto Obtido (a menos)"}.</p>`, async () => {
+    const v = lerNum($("#f-pg-valor").value); if (!(v >= 0)) throw new Error("Valor inválido.");
+    const dados = { pago_em: $("#f-pg-data").value, valor_pago: v, conta_financeira_id: $("#f-pg-cf").value || null }; await S.db.atualizar("lancamentos", { id: l.id }, dados); Object.assign(l, dados);
+    toast(ent ? "Recebimento registrado." : "Pagamento registrado."); }, ent ? "Confirmar recebimento" : "Confirmar pagamento");
+}
+
+/* ---------------------------------------------------------------- FORNECEDORES */
+function vFornecedores() {
+  const P = S.periodo, h = hoje();
+  const lista = S.d.fornecedores.slice().sort((a, b) => (b.ativo - a.ativo) || a.nome.localeCompare(b.nome));
+  const linhas = lista.map(f => { const ls = S.d.lancamentos.filter(l => l.fornecedor_id === f.id);
+    const aberto = ls.filter(l => !l.pago_em).reduce((s, l) => s + +l.valor, 0), venc = ls.some(l => !l.pago_em && l.vencimento < h);
+    const pago = ls.filter(l => l.pago_em && l.pago_em >= P.ini && l.pago_em <= P.fim).reduce((s, l) => s + +(l.valor_pago ?? l.valor), 0);
+    const c = contaPorId(f.conta_padrao_id);
+    return `<tr${f.ativo ? "" : ' style="opacity:.6"'}><td><b>${esc(f.nome)}</b>${f.ativo ? "" : ' <span class="pill neu">inativo</span>'}<span class="sec">${esc([f.cpf_cnpj, f.fone, f.email].filter(Boolean).join(" · ")) || "&nbsp;"}</span></td>
+      <td>${c ? `<span class="cod">${esc(c.codigo)}</span> ${esc(c.nome)}` : '<span class="nota">–</span>'}</td>
+      <td class="v">${brl(pago)}</td><td class="v ${venc ? "neg" : ""}">${brl(aberto)}</td>
+      <td class="acoes"><button class="bt mini" data-acao="conta-do-forn" data-id="${f.id}">Nova conta</button><button class="bt mini" data-acao="editar-forn" data-id="${f.id}">Editar</button></td></tr>`; }).join("");
+  return cabecalho("Fornecedores", "Cadastre quem você paga. A conta padrão já vem escolhida ao lançar uma conta.", `<button class="bt pri" data-acao="novo-forn">+ Novo fornecedor</button>`)
+    + `<div class="barra"><span class="nota">Coluna "Pago" no período:</span>${seletorPeriodo()}</div>`
+    + `<div class="tabela">${lista.length ? `<table><thead><tr><th>Fornecedor</th><th>Conta padrão</th><th class="v">Pago</th><th class="v">Em aberto</th><th></th></tr></thead><tbody>${linhas}</tbody></table>`
+      : `<div class="vazio">Nenhum fornecedor ainda.<br><button class="bt pri" data-acao="novo-forn" style="margin-top:10px">Cadastrar o primeiro</button></div>`}</div>`;
+}
+function formFornecedor(f, depois) {
+  const novo = !f; f = f || { ativo: true };
+  abrirModal(novo ? "Novo fornecedor" : "Editar fornecedor", `
+    <label class="campo">Nome<input type="text" id="fo-nome" required value="${esc(f.nome)}"></label>
+    <div class="duas"><label class="campo">CPF / CNPJ<input type="text" id="fo-doc" value="${esc(f.cpf_cnpj)}"></label>
+    <label class="campo">Telefone / WhatsApp<input type="text" id="fo-fone" value="${esc(f.fone)}"></label></div>
+    <label class="campo">E-mail<input type="email" id="fo-email" value="${esc(f.email)}"></label>
+    <label class="campo">Conta padrão do plano<select id="fo-conta"><option value="">(nenhuma)</option>${opcoesPlano(f.conta_padrao_id)}</select></label>
+    <label class="campo">Observação<textarea id="fo-obs" rows="2">${esc(f.obs)}</textarea></label>
+    ${novo ? "" : `<label class="check"><input type="checkbox" id="fo-ativo" ${f.ativo ? "checked" : ""}> Ativo (aparece na hora de lançar contas)</label>`}`, async () => {
+    const dados = { nome: $("#fo-nome").value.trim(), cpf_cnpj: $("#fo-doc").value.trim(), fone: $("#fo-fone").value.trim(), email: $("#fo-email").value.trim(),
+      conta_padrao_id: $("#fo-conta").value || null, obs: $("#fo-obs").value.trim(), ativo: novo ? true : $("#fo-ativo").checked };
+    if (!dados.nome) throw new Error("Informe o nome.");
+    if (novo) { const [x] = await S.db.inserir("fornecedores", [{ empresa_id: S.empresaId, ...dados }]); S.d.fornecedores.push(x); toast("Fornecedor cadastrado."); if (depois) setTimeout(() => depois(x), 50); }
+    else { await S.db.atualizar("fornecedores", { id: f.id }, dados); Object.assign(f, dados); toast("Fornecedor alterado."); }
+  });
+}
+
+/* ---------------------------------------------------------------- PLANO DE CONTAS */
+function vPlano() {
+  const usadas = new Set(S.d.lancamentos.map(l => l.conta_id)), naForma = new Set(S.d.formas.map(f => f.conta_receita_id));
+  const linhaConta = c => `<div class="c${c.ativa ? "" : " inativa"}"><span class="cod">${esc(c.codigo)}</span><span class="nome">${esc(c.nome)}
+      ${c.automatica ? `<span class="pill pdv" title="${esc(AUTO_DESC[c.automatica] || "")}">automática</span>` : naForma.has(c.id) ? '<span class="pill pdv" title="recebe vendas do PDV+ (Configurações > Formas de pagamento)">PDV+</span>' : ""}${c.ativa ? "" : ' <span class="pill neu">inativa</span>'}</span>
+      <span class="barra"><button class="bt mini" data-acao="editar-plano" data-id="${c.id}">Editar</button>${c.automatica || naForma.has(c.id) ? "" : usadas.has(c.id) ? `<button class="bt mini" data-acao="ativar-plano" data-id="${c.id}">${c.ativa ? "Desativar" : "Ativar"}</button>` : `<button class="bt mini perigo" data-acao="excluir-plano" data-id="${c.id}">Excluir</button>`}</span></div>`;
+  return cabecalho("Plano de contas", "Modelo gerencial em três níveis: grupo, subgrupo e conta. Os lançamentos vão sempre nas contas.",
+      `<button class="bt" data-acao="importar-plano">Importar do Excel</button><button class="bt" data-acao="restaurar-plano">Completar com o plano padrão</button>`) + `<div class="plano">${GRUPOS.map(G => {
+    const blocos = arvore(S.d.plano.filter(c => c.grupo === G.g)), nivel2 = G.cod.includes(".");
+    return `<div class="g"><header><h3><span class="cod">${G.cod}</span> ${G.nome}</h3>${nivel2 ? `<button class="bt mini" data-acao="nova-conta-plano" data-pai="${G.cod}" data-g="${G.g}">+ Nova conta</button>` : `<button class="bt mini" data-acao="novo-subgrupo" data-g="${G.g}">+ Novo subgrupo</button>`}</header>
+      ${blocos.map(b => (b.sub && b.sub.codigo !== G.cod ? `<div class="s"><span class="cod">${esc(b.sub.codigo)}</span><span class="nome">${esc(b.sub.nome)}</span>
+        <span class="barra"><button class="bt mini" data-acao="nova-conta-plano" data-pai="${esc(b.sub.codigo)}" data-g="${G.g}">+ Conta</button><button class="bt mini" data-acao="editar-plano" data-id="${b.sub.id}">Editar</button></span></div>` : "")
+        + b.contas.map(linhaConta).join("")).join("") || `<div class="c"><span></span><span class="nota">Nenhuma conta neste grupo.</span><span></span></div>`}
+    </div>`; }).join("")}</div>`;
+}
+function proximoCodigo(pai) { const n = pai.split(".").length + 1;
+  const ns = S.d.plano.filter(c => c.codigo.startsWith(pai + ".") && c.codigo.split(".").length === n).map(c => parseInt(c.codigo.split(".").pop()) || 0);
+  return pai + "." + (Math.max(0, ...ns) + 1); }
+function formPlano(c, novoOpc) {
+  const novo = !c; c = c || { grupo: novoOpc.g, codigo: proximoCodigo(novoOpc.pai), sintetica: !!novoOpc.sintetica, ativa: true };
+  const tipo = c.sintetica ? "subgrupo" : "conta";
+  abrirModal(novo ? "Novo " + tipo : "Editar " + tipo, `
+    <div class="duas"><label class="campo">Código<input type="text" id="pl-cod" required value="${esc(c.codigo)}"></label>
+    <label class="campo">Grupo<select id="pl-grupo" ${c.automatica ? "disabled" : ""}>${GRUPOS.map(G => `<option value="${G.g}" ${G.g === c.grupo ? "selected" : ""}>${G.cod} ${G.nome}</option>`).join("")}</select></label></div>
+    <label class="campo">Nome<input type="text" id="pl-nome" required value="${esc(c.nome)}"></label>
+    ${c.automatica ? `<p class="nota" style="margin:0">Esta conta ${AUTO_DESC[c.automatica]}. Você pode mudar o nome e o código.</p>` : ""}
+    ${c.sintetica ? `<p class="nota" style="margin:0">Subgrupo só agrupa. As contas dele começam com o mesmo código (ex.: ${esc(c.codigo)}.1).</p>` : ""}`, async () => {
+    const dados = { codigo: $("#pl-cod").value.trim().replace(/\s+/g, ""), nome: $("#pl-nome").value.trim() }; if (!c.automatica) dados.grupo = $("#pl-grupo").value;
+    if (!/^\d+(\.\d+)+$/.test(dados.codigo)) throw new Error("Use um código como 4.2 ou 4.2.24.");
+    if (!dados.nome) throw new Error("Informe o nome.");
+    if (S.d.plano.some(x => x.codigo === dados.codigo && x.id !== c.id)) throw new Error("Já existe uma conta com o código " + dados.codigo + ".");
+    if (novo) { const [x] = await S.db.inserir("plano_contas", [{ empresa_id: S.empresaId, ...dados, sintetica: !!c.sintetica, ativa: true }]); S.d.plano.push(x); toast(tipo === "subgrupo" ? "Subgrupo criado." : "Conta criada."); }
+    else { await S.db.atualizar("plano_contas", { id: c.id }, dados); Object.assign(c, dados); toast("Alterado."); }
+  });
+}
+/* Importação: lê qualquer planilha com células no formato "4.2.11 Contador" (a do modelo da Aliber/consultoria)
+   e a lista abaixo de "CONTAS CAIXA/ BANCOS". */
+function lerPlanilhaPlano(linhas) {
+  const itens = new Map(), bancos = [];
+  linhas.forEach(r => r.forEach(cel => { if (typeof cel !== "string") return;
+    const m = cel.match(/^\s*(\d+(?:\.\d+)+)\s*[-–]?\s*(.*?)\s*$/); if (!m || !m[2]) return;
+    itens.set(m[1], m[2].replace(/\s+/g, " ")); }));
+  for (let i = 0; i < linhas.length; i++) for (let j = 0; j < linhas[i].length; j++) {
+    const v = linhas[i][j]; if (typeof v !== "string" || !/BANCOS/i.test(v)) continue;
+    for (let k = i + 1, vazios = 0; k < linhas.length && vazios < 2; k++) { const n = (linhas[k][j] ?? "").toString().trim();
+      if (!n) { vazios++; continue; } if (/^\d+(\.\d+)+/.test(n) || /^[A-ZÁÉÍÓÚÇÃÕ /]{8,}$/.test(n)) break; vazios = 0;
+      if (!/^banco\s*\d+$/i.test(n)) bancos.push(n); }
+  }
+  const lista = [...itens].map(([codigo, nome]) => ({ codigo, nome, sintetica: codigo.split(".").length === 2, grupo: grupoDoCodigo(codigo) })).sort(ordemCod);
+  lista.forEach(x => { if (x.sintetica && !lista.some(y => y.codigo.startsWith(x.codigo + "."))) x.sintetica = false; });
+  return { lista, bancos: [...new Set(bancos)] };
+}
+async function formImportar() {
+  abrirModal("Importar plano de contas do Excel", `
+    <p style="margin:0">Escolha a planilha (.xlsx, .xls ou .csv). Vou ler as células com código e nome, como <span class="cod">4.2.11 Contador</span>, e a lista de caixa e bancos.</p>
+    <input type="file" id="imp-arq" accept=".xlsx,.xls,.csv" data-acao-change="ler-planilha">
+    <div id="imp-prev" class="nota">Nenhum arquivo escolhido.</div>`, async () => {
+    const dados = window.__importacao; if (!dados) throw new Error("Escolha a planilha primeiro.");
+    const porCod = {}; S.d.plano.forEach(c => porCod[c.codigo] = c);
+    const novas = [], alterar = [];
+    dados.lista.forEach(x => { const c = porCod[x.codigo];
+      if (!c) novas.push({ empresa_id: S.empresaId, codigo: x.codigo, nome: x.nome, grupo: x.grupo, sintetica: x.sintetica, ativa: true, automatica: null });
+      else if (c.nome !== x.nome || !c.ativa) alterar.push([c, { nome: x.nome, ativa: true }]); });
+    if (novas.length) S.d.plano.push(...await S.db.inserir("plano_contas", novas));
+    for (const [c, d] of alterar) { await S.db.atualizar("plano_contas", { id: c.id }, d); Object.assign(c, d); }
+    let desat = 0;
+    if ($("#imp-desat")?.checked) { const cods = new Set(dados.lista.map(x => x.codigo));
+      for (const c of S.d.plano) if (!cods.has(c.codigo) && c.ativa && !c.automatica) { await S.db.atualizar("plano_contas", { id: c.id }, { ativa: false }); c.ativa = false; desat++; } }
+    const bNovos = $("#imp-bancos")?.checked ? dados.bancos.filter(n => !S.d.bancos.some(b => b.nome.toLowerCase() === n.toLowerCase())) : [];
+    if (bNovos.length) S.d.bancos.push(...await S.db.inserir("contas_financeiras", bNovos.map(nome => ({ empresa_id: S.empresaId, nome, tipo: /caixa/i.test(nome) ? "caixa" : "banco", saldo_inicial: 0, data_saldo: hoje(), ativa: true }))));
+    window.__importacao = null;
+    toast(`${novas.length} conta(s) nova(s), ${alterar.length} renomeada(s)${desat ? ", " + desat + " desativada(s)" : ""}${bNovos.length ? ", " + bNovos.length + " caixa/banco" : ""}.`);
+  }, "Importar");
+}
+async function lerArquivoPlano(arq) {
+  const prev = $("#imp-prev"); prev.textContent = "Lendo…"; window.__importacao = null;
+  try {
+    if (!window.XLSX) await carregarScript("https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js");
+    const wb = XLSX.read(await arq.arrayBuffer(), { type: "array" });
+    const linhas = wb.SheetNames.flatMap(n => XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, raw: false, defval: "" }));
+    const r = lerPlanilhaPlano(linhas); if (!r.lista.length) throw new Error("Não encontrei contas com código (ex.: 4.2.11 Contador) nesta planilha.");
+    window.__importacao = r;
+    const existe = new Set(S.d.plano.map(c => c.codigo));
+    const porG = GRUPOS.map(G => [G, r.lista.filter(x => x.grupo === G.g)]).filter(([, l]) => l.length);
+    prev.innerHTML = `<div class="tabela"><table><thead><tr><th>Grupo</th><th class="v">Subgrupos</th><th class="v">Contas</th><th class="v">Novas</th></tr></thead><tbody>
+      ${porG.map(([G, l]) => `<tr><td>${G.cod} ${G.nome}</td><td class="v">${l.filter(x => x.sintetica).length}</td><td class="v">${l.filter(x => !x.sintetica).length}</td><td class="v">${l.filter(x => !existe.has(x.codigo)).length}</td></tr>`).join("")}</tbody></table></div>
+      ${r.bancos.length ? `<label class="check" style="margin-top:8px"><input type="checkbox" id="imp-bancos" checked> Criar caixa/bancos: ${esc(r.bancos.join(", "))}</label>` : ""}
+      <label class="check"><input type="checkbox" id="imp-desat"> Desativar as contas atuais que não estão na planilha</label>
+      <p class="nota" style="margin:6px 0 0">Contas com o mesmo código são renomeadas. Nada é apagado, e os lançamentos continuam onde estão.</p>`;
+  } catch (e) { prev.innerHTML = `<span class="neg">${esc(e.message || "Não consegui ler o arquivo.")}</span>`; }
+}
+
+/* ---------------------------------------------------------------- CAIXA E BANCOS */
+function vBancos() {
+  const d = S.d, h = hoje(), P = S.periodo;
+  const info = d.bancos.map(b => { const m = movimentosConta(b, d); return { b, m, hoje: saldoEm(b, h, d, m), futuro: m.filter(x => x.data > h).reduce((s, x) => s + x.valor, 0) }; });
+  const ativos = info.filter(x => x.b.ativa);
+  const total = ativos.reduce((s, x) => s + x.hoje, 0), receber = ativos.reduce((s, x) => s + x.futuro, 0);
+  const pagar30 = d.lancamentos.filter(l => !l.pago_em && !ehEntrada(l) && l.vencimento <= addDias(h, 30)).reduce((s, l) => s + +l.valor, 0);
+  const semConta = d.lancamentos.filter(l => l.pago_em && !l.conta_financeira_id).length;
+  const sel = info.find(x => x.b.id === S.banco.sel) || info[0];
+  let extrato = "";
+  if (sel) { const ant = saldoEm(sel.b, addDias(P.ini, -1), d, sel.m); let saldo = ant;
+    const linhas = sel.m.filter(x => x.data >= P.ini && x.data <= P.fim).map(x => { saldo += x.valor;
+      const acao = x.origem === "mov" ? `<button class="bt mini perigo" data-acao="excluir-mov" data-id="${x.ref}">Excluir</button>` : x.origem === "lancamento" ? `<button class="bt mini" data-acao="editar-conta" data-id="${x.ref}">Abrir</button>` : "";
+      return `<tr${x.data > h ? ' class="futuro"' : ""}><td class="num">${dataBR(x.data)}</td><td>${esc(x.desc)}${x.conta ? `<span class="sec"><span class="cod">${esc(x.conta.codigo)}</span> ${esc(x.conta.nome)}</span>` : ""}${x.data > h ? ' <span class="pill neu">previsto</span>' : ""}</td>
+        <td class="v pos">${x.valor > 0 ? brl(x.valor) : ""}</td><td class="v neg">${x.valor < 0 ? brl(-x.valor) : ""}</td><td class="v ${saldo < 0 ? "neg" : ""}">${brl(saldo)}</td><td class="acoes">${acao}</td></tr>`; }).join("");
+    extrato = `<section class="painel"><h2>Extrato · ${esc(sel.b.nome)} <small>${dataBR(P.ini)} a ${dataBR(P.fim)}</small></h2>
+      <div class="barra" style="margin-bottom:10px">${info.map(x => `<button class="bt mini ${x.b.id === sel.b.id ? "azul" : ""}" data-acao="banco-sel" data-id="${x.b.id}">${esc(x.b.nome)}</button>`).join("")}</div>
+      <div class="tabela"><table><thead><tr><th>Data</th><th>Descrição</th><th class="v">Entrada</th><th class="v">Saída</th><th class="v">Saldo</th><th></th></tr></thead><tbody>
+      <tr><td class="num">${dataBR(addDias(P.ini, -1))}</td><td><b>Saldo anterior</b></td><td></td><td></td><td class="v"><b>${brl(ant)}</b></td><td></td></tr>
+      ${linhas || `<tr><td colspan="6" class="vazio">Nenhum movimento neste período.</td></tr>`}</tbody></table></div>
+      <p class="nota">Vendas do PDV+ entram pela forma de pagamento (Configurações): já sem a taxa e na data em que o dinheiro cai. Movimentos anteriores a ${dataBR(sel.b.data_saldo)} (data do saldo inicial) não contam.</p></section>`; }
+  return cabecalho("Caixa e bancos", "Saldo de cada conta, transferências entre contas internas e acerto de caixa. Nada disso muda a DRE.",
+      `<button class="bt" data-acao="novo-banco">+ Nova conta</button><button class="bt" data-acao="acerto">Acerto de caixa</button><button class="bt pri" data-acao="transferir">Transferir</button>`) + `
+    <div class="kpis">
+      <div class="kpi destaque"><span>Saldo hoje</span><b class="${total < 0 ? "neg" : ""}">${brl(total)}</b><small>${ativos.length} conta(s) ativas</small></div>
+      <div class="kpi"><span>A receber das maquininhas</span><b>${brl(receber)}</b><small>vendas que ainda vão cair</small></div>
+      <div class="kpi"><span>A pagar em 30 dias</span><b>${brl(pagar30)}</b><small>contas em aberto até ${dataBR(addDias(h, 30)).slice(0, 5)}</small></div>
+      <div class="kpi"><span>Previsto em 30 dias</span><b class="${total + receber - pagar30 < 0 ? "neg" : ""}">${brl(total + receber - pagar30)}</b><small>saldo + a receber − a pagar</small></div>
+    </div>
+    <div class="tabela"><table><thead><tr><th>Conta</th><th>Tipo</th><th class="v">Saldo hoje</th><th class="v">A receber</th><th></th></tr></thead><tbody>
+    ${info.map(x => `<tr${x.b.ativa ? "" : ' style="opacity:.6"'}><td><b>${esc(x.b.nome)}</b>${x.b.ativa ? "" : ' <span class="pill neu">inativa</span>'}<span class="sec">saldo inicial ${brl(x.b.saldo_inicial)} em ${dataBR(x.b.data_saldo)}</span></td>
+      <td><span class="pill neu">${{ caixa: "Caixa", banco: "Banco", investimento: "Investimento" }[x.b.tipo] || x.b.tipo}</span></td>
+      <td class="v ${x.hoje < 0 ? "neg" : ""}"><b>${brl(x.hoje)}</b></td><td class="v">${x.futuro ? brl(x.futuro) : "–"}</td>
+      <td class="acoes"><button class="bt mini" data-acao="banco-sel" data-id="${x.b.id}">Extrato</button><button class="bt mini" data-acao="editar-banco" data-id="${x.b.id}">Editar</button></td></tr>`).join("") || `<tr><td colspan="5" class="vazio">Nenhuma conta ainda.</td></tr>`}
+    </tbody></table></div>
+    ${semConta ? `<p class="nota" style="margin:0">${semConta} pagamento(s) sem caixa/banco informado não entram nos saldos. Abra a conta paga e escolha "Paga com".</p>` : ""}
+    <div class="barra"><span class="nota">Período do extrato:</span>${seletorPeriodo()}</div>${extrato}`;
+}
+function formBanco(b) {
+  const novo = !b; b = b || { tipo: "banco", saldo_inicial: 0, data_saldo: hoje(), ativa: true };
+  abrirModal(novo ? "Nova conta de caixa ou banco" : "Editar " + b.nome, `
+    <div class="duas"><label class="campo">Nome<input type="text" id="cf-nome" required value="${esc(b.nome)}" placeholder="Ex.: Santander, Caixa dinheiro"></label>
+    <label class="campo">Tipo<select id="cf-tipo">${[["caixa", "Caixa (dinheiro)"], ["banco", "Banco"], ["investimento", "Investimento"]].map(([k, t]) => `<option value="${k}" ${b.tipo === k ? "selected" : ""}>${t}</option>`).join("")}</select></label></div>
+    <div class="duas"><label class="campo">Saldo inicial<input type="text" inputmode="decimal" id="cf-saldo" value="${numBR(b.saldo_inicial)}"></label>
+    <label class="campo">Saldo no fim do dia<input type="date" id="cf-data" required value="${b.data_saldo}"></label></div>
+    <p class="nota" style="margin:0">Informe o saldo real da conta (extrato do banco ou dinheiro contado) numa data. Daí em diante o painel soma as vendas e tira os pagamentos.</p>
+    ${novo ? "" : `<label class="check"><input type="checkbox" id="cf-ativa" ${b.ativa ? "checked" : ""}> Ativa</label>`}`, async () => {
+    const dados = { nome: $("#cf-nome").value.trim(), tipo: $("#cf-tipo").value, saldo_inicial: lerNum($("#cf-saldo").value) || 0, data_saldo: $("#cf-data").value, ativa: novo ? true : $("#cf-ativa").checked };
+    if (!dados.nome) throw new Error("Informe o nome.");
+    if (novo) { const [x] = await S.db.inserir("contas_financeiras", [{ empresa_id: S.empresaId, ...dados }]); S.d.bancos.push(x); toast("Conta criada."); }
+    else { await S.db.atualizar("contas_financeiras", { id: b.id }, dados); Object.assign(b, dados); toast("Conta alterada."); }
+  });
+}
+function formTransferir() {
+  if (S.d.bancos.filter(b => b.ativa).length < 2) return toast("Cadastre pelo menos duas contas para transferir.", true);
+  const ativos = S.d.bancos.filter(b => b.ativa);
+  abrirModal("Transferência entre contas internas", `
+    <div class="duas"><label class="campo">De<select id="tr-de">${ativos.map((b, i) => `<option value="${b.id}" ${i === 0 ? "selected" : ""}>${esc(b.nome)}</option>`).join("")}</select></label>
+    <label class="campo">Para<select id="tr-para">${ativos.map((b, i) => `<option value="${b.id}" ${i === 1 ? "selected" : ""}>${esc(b.nome)}</option>`).join("")}</select></label></div>
+    <div class="duas"><label class="campo">Data<input type="date" id="tr-data" required value="${hoje()}"></label>
+    <label class="campo">Valor<input type="text" inputmode="decimal" id="tr-valor" required placeholder="0,00"></label></div>
+    <label class="campo">Descrição<input type="text" id="tr-desc" placeholder="Ex.: Depósito do caixa no banco"></label>`, async () => {
+    const valor = lerNum($("#tr-valor").value), de = $("#tr-de").value, para = $("#tr-para").value;
+    if (!(valor > 0)) throw new Error("Informe um valor maior que zero."); if (de === para) throw new Error("Escolha contas diferentes.");
+    const [x] = await S.db.inserir("movimentos", [{ empresa_id: S.empresaId, data: $("#tr-data").value, tipo: "transferencia", origem_id: de, destino_id: para, valor, descricao: $("#tr-desc").value.trim() }]);
+    S.d.movimentos.push(x); toast("Transferência registrada."); }, "Transferir");
+}
+function formAcerto() {
+  const ativos = S.d.bancos.filter(b => b.ativa); if (!ativos.length) return toast("Cadastre uma conta de caixa primeiro.", true);
+  const sel = ativos.find(b => b.tipo === "caixa") || ativos[0];
+  abrirModal("Acerto de caixa", `
+    <p style="margin:0">Conte o dinheiro (ou confira o extrato) e informe o valor real. O painel lança a diferença como acerto de caixa.</p>
+    <div class="duas"><label class="campo">Conta<select id="ac-conta" data-acao-change="acerto-atualiza">${ativos.map(b => `<option value="${b.id}" ${b.id === sel.id ? "selected" : ""}>${esc(b.nome)}</option>`).join("")}</select></label>
+    <label class="campo">Data<input type="date" id="ac-data" required value="${hoje()}" data-acao-change="acerto-atualiza"></label></div>
+    <div class="duas"><label class="campo">Saldo no painel<input type="text" id="ac-sistema" readonly></label>
+    <label class="campo">Saldo real (contado)<input type="text" inputmode="decimal" id="ac-real" required data-acao-input="acerto-dif"></label></div>
+    <div id="ac-dif" class="nota"></div>
+    <label class="campo">Observação<input type="text" id="ac-desc" placeholder="Ex.: Diferença na contagem do fechamento"></label>`, async () => {
+    const b = bancoPorId($("#ac-conta").value), dt = $("#ac-data").value, real = lerNum($("#ac-real").value);
+    if (!isFinite(real)) throw new Error("Informe o saldo real.");
+    const dif = Math.round((real - saldoEm(b, dt, S.d)) * 100) / 100; if (!dif) { toast("Saldo já confere. Nada a acertar."); return; }
+    const [x] = await S.db.inserir("movimentos", [{ empresa_id: S.empresaId, data: dt, tipo: "acerto", origem_id: null, destino_id: b.id, valor: dif, descricao: $("#ac-desc").value.trim() }]);
+    S.d.movimentos.push(x); toast(`Acerto de ${brl(dif)} registrado.`); }, "Lançar acerto");
+  atualizarAcerto();
+}
+function atualizarAcerto() { const b = bancoPorId($("#ac-conta")?.value); if (!b) return; const s = saldoEm(b, $("#ac-data").value, S.d);
+  $("#ac-sistema").value = brl(s); const real = lerNum($("#ac-real").value);
+  $("#ac-dif").innerHTML = isFinite(real) ? (Math.abs(real - s) < 0.005 ? "Confere." : `Diferença: <b class="${real - s < 0 ? "neg" : "pos"}">${brl(real - s)}</b> (${real - s < 0 ? "falta" : "sobra"})`) : ""; }
+
+/* ---------------------------------------------------------------- CONFIGURAÇÕES */
+function vConfig() {
+  const e = empresa();
+  return cabecalho("Configurações", esc(e?.nome)) + `
+  <section class="painel"><h2>Formas de pagamento do PDV+ <small>em qual conta do plano a venda entra, onde o dinheiro cai, taxa e prazo</small></h2>
+    <form data-form="formas"><div class="tabela"><table><thead><tr><th>Cód.</th><th>Nome</th><th>Conta de receita</th><th>Cai em</th><th>Crediário</th><th class="v">Taxa %</th><th class="v">Prazo (dias)</th></tr></thead><tbody>
+    ${S.d.formas.map(f => `<tr><td class="cod">${f.codigo}</td><td><input type="text" id="fp-nome-${f.codigo}" value="${esc(f.nome)}" aria-label="Nome da forma ${f.codigo}"></td>
+      <td><select id="fp-conta-${f.codigo}" aria-label="Conta de receita" style="min-width:190px">${opcoesPlano(f.conta_receita_id, { entrada: true })}</select></td>
+      <td><select id="fp-cf-${f.codigo}" aria-label="Cai em" style="min-width:150px">${opcoesBancos(f.conta_financeira_id, "(nenhuma)")}</select></td>
+      <td style="text-align:center"><input type="checkbox" id="fp-prazo-ap-${f.codigo}" ${ehAPrazo(f) ? "checked" : ""} aria-label="É crediário"></td>
+      <td class="v"><input type="text" inputmode="decimal" id="fp-taxa-${f.codigo}" value="${numBR(f.taxa_percentual)}" style="width:80px;min-width:0;text-align:right" aria-label="Taxa"></td>
+      <td class="v"><input type="number" min="0" max="120" id="fp-prazo-${f.codigo}" value="${f.prazo_dias}" style="width:72px;text-align:right" aria-label="Prazo"></td></tr>`).join("")}
+    </tbody></table></div>
+    <p class="nota">A taxa vai para 3.1.3 Taxa de cartões. "Crediário" marca a forma que só vira dinheiro quando o cliente paga. Exemplo de taxas: crédito 3,19% em 30 dias; débito 1,39% em 1 dia; Pix 0,99% na hora.</p>
+    <div class="barra" style="justify-content:flex-end"><button class="bt azul" type="submit">Salvar formas de pagamento</button></div></form>
+  </section>
+  <section class="painel"><h2>Sincronização com o PDV+</h2>
+    <p style="margin:0 0 6px">${infoSync()}${e?.versao_sync ? ` · sincronizador v${esc(e.versao_sync)}` : ""}.</p>
+    <p class="nota" style="margin:0">O programa <b>Aliber Financeiro</b> no computador do caixa envia as vendas a cada 15 minutos. Se a data acima estiver antiga, confira se o programa está aberto e com internet.</p>
+    ${S.admin ? `<p style="margin:12px 0 0">Chave desta loja para o sincronizador: <code class="cod" style="font-size:14px;color:var(--fg)">${esc(e?.chave_sync)}</code> <button class="bt mini" data-acao="copiar" data-texto="${esc(e?.chave_sync)}">Copiar</button></p>` : ""}
+  </section>
+  <section class="painel"><h2>Sua conta</h2><p style="margin:0">Conectado como <b>${esc(S.email)}</b>.</p>
+    <div class="barra" style="margin-top:10px"><button class="bt" data-acao="sair">${S.db.modo === "demo" ? "Recomeçar demonstração" : "Sair"}</button></div></section>`;
+}
+
+/* ---------------------------------------------------------------- ADMINISTRAÇÃO (equipe Aliber) */
+function vAdmin() {
+  return cabecalho("Administração", "Lojas clientes da Aliber, chaves do sincronizador e quem acessa cada uma.", `<button class="bt pri" data-acao="nova-empresa">+ Nova loja</button>`) + `
+  <div class="tabela"><table><thead><tr><th>Loja</th><th>Última sincronização</th><th>Chave do sincronizador</th><th></th></tr></thead><tbody>
+  ${S.empresas.map(e => { const atras = !e.ultima_sync || (Date.now() - new Date(e.ultima_sync)) > 864e5;
+    return `<tr><td><b>${esc(e.nome)}</b><span class="sec">${esc(e.cnpj) || "&nbsp;"}</span></td>
+    <td>${e.ultima_sync ? new Date(e.ultima_sync).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) : "nunca"} ${atras ? '<span class="pill warn">atrasada</span>' : '<span class="pill ok">em dia</span>'}</td>
+    <td><code class="cod" style="color:var(--fg)">${esc(e.chave_sync)}</code> <button class="bt mini" data-acao="copiar" data-texto="${esc(e.chave_sync)}">Copiar</button></td>
+    <td class="acoes"><button class="bt mini" data-acao="usuarios" data-id="${e.id}">Acessos</button><button class="bt mini" data-acao="abrir-empresa" data-id="${e.id}">Abrir</button></td></tr>`; }).join("") || `<tr><td colspan="4" class="vazio">Nenhuma loja ainda.</td></tr>`}
+  </tbody></table></div>
+  <section class="painel"><h2>Como ligar uma loja nova</h2><ol style="margin:0;padding-left:20px;display:grid;gap:4px">
+    <li>Clique em <b>+ Nova loja</b> e copie a chave que aparece na tabela.</li>
+    <li>No computador do caixa, abra o <b>AliberFinanceiro.exe</b>, vá em <b>Configurações</b> e cole a chave.</li>
+    <li>Peça para o dono abrir este painel e clicar em <b>Criar conta</b>. Depois, em <b>Acessos</b>, informe o e-mail dele.</li>
+  </ol></section>`;
+}
+async function formUsuarios(e) {
+  let us = []; try { us = await S.db.rpc("usuarios_da_empresa", { empresa: e.id }) || []; } catch (x) { toast(x.message, true); }
+  abrirModal("Acessos · " + e.nome, `
+    <div class="tabela"><table><tbody>${us.length ? us.map(u => `<tr><td>${esc(u.email)}</td><td class="acoes"><button type="button" class="bt mini perigo" data-acao="desvincular" data-e="${e.id}" data-email="${esc(u.email)}">Remover</button></td></tr>`).join("") : `<tr><td class="vazio">Ninguém tem acesso ainda.</td></tr>`}</tbody></table></div>
+    <label class="campo">Liberar acesso para o e-mail<input type="email" id="us-email" required placeholder="dono@loja.com.br"></label>
+    <p class="nota" style="margin:0">A pessoa precisa ter clicado em "Criar conta" no painel antes.</p>`, async () => {
+    await S.db.rpc("vincular_usuario", { empresa: e.id, email_usuario: $("#us-email").value.trim() }); toast("Acesso liberado."); }, "Liberar acesso");
+}
+
+/* ---------------------------------------------------------------- modal e confirmação */
+let aoEnviarModal = null;
+function abrirModal(titulo, corpo, aoEnviar, rotulo = "Salvar") {
+  fecharModal(); aoEnviarModal = aoEnviar;
+  const d = document.createElement("div"); d.className = "fundo"; d.id = "modal";
+  d.innerHTML = `<div class="caixa" role="dialog" aria-modal="true" aria-label="${esc(titulo)}"><header><h2>${esc(titulo)}</h2><button class="x" type="button" data-acao="fechar" aria-label="Fechar">×</button></header>
+    <form data-form="modal" novalidate>${corpo}<div class="acoes-form"><button type="button" class="bt" data-acao="fechar">Cancelar</button><button type="submit" class="bt pri">${esc(rotulo)}</button></div></form></div>`;
+  document.body.appendChild(d); setTimeout(() => d.querySelector("input:not([type=hidden]),select,textarea")?.focus(), 30);
+}
+function fecharModal() { $("#modal")?.remove(); aoEnviarModal = null; }
+function confirmar(titulo, texto, rotulo, acao) {
+  abrirModal(titulo, `<p style="margin:0">${texto}</p>`, acao, rotulo);
+  const b = $("#modal button[type=submit]"); b.textContent = rotulo; }
+async function copiar(texto, msg) {
+  try { await navigator.clipboard.writeText(texto); toast(msg || "Copiado."); }
+  catch (e) { abrirModal("Copie o texto", `<textarea id="copia" rows="8" readonly>${esc(texto)}</textarea><p class="nota" style="margin:0">Selecione tudo (Ctrl+A) e copie (Ctrl+C).</p>`, async () => {}, "Fechar");
+    setTimeout(() => $("#copia")?.select(), 50); }
+}
+function baixar(nome, texto, tipo) { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob(["﻿" + texto], { type: tipo })); a.download = nome; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500); }
+
+/* ---------------------------------------------------------------- eventos */
+document.addEventListener("click", async ev => {
+  const el = ev.target.closest("[data-acao]"); if (!el || el.tagName === "SELECT" || el.tagName === "INPUT") return;
+  const a = el.dataset.acao, id = el.dataset.id, l = id && S.d.lancamentos.find(x => x.id === id);
+  try {
+    if (a === "fechar") return fecharModal();
+    if (a === "acesso") return telaEntrada(el.dataset.modo);
+    if (a === "sair") { await S.db.sair(); return location.reload(); }
+    if (a === "recarregar") return depoisDeEntrar();
+    if (a === "periodo") { definirPeriodo(el.dataset.p); return desenharConteudo(); }
+    if (a === "dre-op") { S.dre[el.dataset.k] = el.dataset.v; guardar("dre2", S.dre); return desenharConteudo(); }
+    if (a === "dobrar") { const g = el.dataset.g, f = S.dre.fechados; S.dre.fechados = f.includes(g) ? f.filter(x => x !== g) : [...f, g]; guardar("dre2", S.dre); return desenharConteudo(); }
+    if (a === "copiar-dre") return copiar(tabelaDRETexto("\t"), "DRE copiada. Cole no Excel.");
+    if (a === "baixar-dre") return baixar(`DRE ${empresa()?.nome} ${S.periodo.ini} a ${S.periodo.fim}.csv`, tabelaDRETexto(";"), "text/csv");
+    if (a === "imprimir") return window.print();
+    if (a === "copiar") return copiar(el.dataset.texto);
+    if (a === "nova-conta") return formConta(null, false);
+    if (a === "nova-entrada") return formConta(null, true);
+    if (a === "editar-conta") return formConta(l);
+    if (a === "pagar") return formPagar(l);
+    if (a === "estornar") { const d = { pago_em: null, valor_pago: null }; await S.db.atualizar("lancamentos", { id }, d); Object.assign(l, d); toast("Baixa desfeita."); return desenharConteudo(); }
+    if (a === "excluir-conta") {
+      const irmas = l.grupo_parcelas ? S.d.lancamentos.filter(x => x.grupo_parcelas === l.grupo_parcelas && !x.pago_em && x.id !== l.id) : [];
+      return abrirModal("Excluir lançamento", `<p style="margin:0">Excluir <b>${esc(l.descricao)}</b> de ${brl(l.valor)}, vencimento ${dataBR(l.vencimento)}?</p>
+        ${irmas.length ? `<label class="check"><input type="checkbox" id="ex-todas"> Excluir também as outras ${irmas.length} parcela(s) em aberto</label>` : ""}`, async () => {
+        const alvo = [l, ...($("#ex-todas")?.checked ? irmas : [])];
+        for (const x of alvo) await S.db.excluir("lancamentos", { id: x.id });
+        S.d.lancamentos = S.d.lancamentos.filter(x => !alvo.includes(x)); toast(alvo.length > 1 ? `${alvo.length} lançamentos excluídos.` : "Lançamento excluído."); }, "Excluir");
+    }
+    if (a === "contas-status") { S.contas.status = el.dataset.v; document.querySelectorAll('[data-acao="contas-status"]').forEach(b => b.classList.toggle("on", b === el)); return desenharListaContas(); }
+    if (a === "contas-tipo") { S.contas.tipo = el.dataset.v; document.querySelectorAll('[data-acao="contas-tipo"]').forEach(b => b.classList.toggle("on", b === el)); return desenharListaContas(); }
+    if (a === "contas-limpar-datas") { S.contas.de = S.contas.ate = ""; return desenharConteudo(); }
+    if (a === "novo-forn") return formFornecedor(null);
+    if (a === "editar-forn") return formFornecedor(fornPorId(id));
+    if (a === "conta-do-forn") { const f = fornPorId(id); formConta(null, false); $("#f-forn").value = f.id; if (f.conta_padrao_id && $(`#f-conta option[value="${f.conta_padrao_id}"]`)) $("#f-conta").value = f.conta_padrao_id; if (!$("#f-desc").value) $("#f-desc").value = f.nome; return; }
+    if (a === "novo-subgrupo") { const G = GRUPOS.find(x => x.g === el.dataset.g); return formPlano(null, { g: G.g, pai: G.cod, sintetica: true }); }
+    if (a === "nova-conta-plano") return formPlano(null, { g: el.dataset.g, pai: el.dataset.pai });
+    if (a === "editar-plano") return formPlano(contaPorId(id));
+    if (a === "ativar-plano") { const c = contaPorId(id); await S.db.atualizar("plano_contas", { id }, { ativa: !c.ativa }); c.ativa = !c.ativa; return desenharConteudo(); }
+    if (a === "excluir-plano") { const c = contaPorId(id); return confirmar("Excluir conta do plano", `Excluir <b>${esc(c.codigo)} ${esc(c.nome)}</b>?`, "Excluir", async () => {
+      await S.db.excluir("plano_contas", { id }); S.d.plano = S.d.plano.filter(x => x.id !== id); toast("Conta excluída."); }); }
+    if (a === "importar-plano") return formImportar();
+    if (a === "restaurar-plano") { const faltam = PLANO_PADRAO.filter(p => !S.d.plano.some(c => c.codigo === p[0] || (p[4] && c.automatica === p[4])));
+      if (!faltam.length) return toast("O plano já tem todas as contas padrão.");
+      const novas = await S.db.inserir("plano_contas", faltam.map(([codigo, nome, grupo, sintetica, automatica]) => ({ empresa_id: S.empresaId, codigo, nome, grupo, sintetica, automatica: automatica || null, ativa: true })));
+      S.d.plano.push(...novas); toast(`${novas.length} conta(s) adicionada(s).`); return desenharConteudo(); }
+    if (a === "novo-banco") return formBanco(null);
+    if (a === "editar-banco") return formBanco(bancoPorId(id));
+    if (a === "banco-sel") { S.banco.sel = id; desenharConteudo(); return document.querySelector("#conteudo section.painel:last-child")?.scrollIntoView({ behavior: "smooth", block: "start" }); }
+    if (a === "transferir") return formTransferir();
+    if (a === "acerto") return formAcerto();
+    if (a === "excluir-mov") { const m = S.d.movimentos.find(x => x.id === id); return confirmar("Excluir movimento", `Excluir ${m.tipo === "acerto" ? "o acerto" : "a transferência"} de ${brl(m.valor)} em ${dataBR(m.data)}?`, "Excluir", async () => {
+      await S.db.excluir("movimentos", { id }); S.d.movimentos = S.d.movimentos.filter(x => x.id !== id); toast("Movimento excluído."); }); }
+    if (a === "nova-empresa") return abrirModal("Nova loja", `<label class="campo">Nome da loja<input type="text" id="em-nome" required></label><label class="campo">CNPJ<input type="text" id="em-cnpj"></label>`, async () => {
+      const nome = $("#em-nome").value.trim(); if (!nome) throw new Error("Informe o nome.");
+      const [e] = await S.db.inserir("empresas", [{ nome, cnpj: $("#em-cnpj").value.trim() }]); S.empresas.push(e); S.empresas.sort((x, y) => x.nome.localeCompare(y.nome)); toast("Loja criada. Copie a chave para o sincronizador."); });
+    if (a === "usuarios") return formUsuarios(S.empresas.find(e => e.id === id));
+    if (a === "desvincular") { await S.db.rpc("desvincular_usuario", { empresa: el.dataset.e, email_usuario: el.dataset.email }); toast("Acesso removido."); return formUsuarios(S.empresas.find(e => e.id === el.dataset.e)); }
+    if (a === "abrir-empresa") { await trocarEmpresa(id); location.hash = "resumo"; return; }
+  } catch (e) { toast(e.message || String(e), true); }
+});
+document.addEventListener("change", async ev => {
+  const el = ev.target, a = el.dataset.acaoChange; if (!a) return;
+  if (a === "datas") { definirPeriodo("livre", $("#p-ini").value, $("#p-fim").value); return desenharConteudo(); }
+  if (a === "dre-check") { S.dre[el.dataset.k] = el.checked; guardar("dre2", S.dre); return desenharConteudo(); }
+  if (a === "contas-filtro") { S.contas[el.dataset.k] = el.value; return el.type === "date" ? desenharConteudo() : desenharListaContas(); }
+  if (a === "empresa") return trocarEmpresa(el.value);
+  if (a === "forn-conta") { const f = fornPorId(el.value); if (f?.conta_padrao_id && $(`#f-conta option[value="${f.conta_padrao_id}"]`)) $("#f-conta").value = f.conta_padrao_id; if (f && !$("#f-desc").value) $("#f-desc").value = f.nome; }
+  if (a === "ler-planilha") { if (el.files[0]) lerArquivoPlano(el.files[0]); }
+  if (a === "acerto-atualiza") atualizarAcerto();
+});
+document.addEventListener("input", ev => { const a = ev.target.dataset.acaoInput;
+  if (a === "contas-busca") { S.contas.busca = ev.target.value; desenharListaContas(); }
+  if (a === "acerto-dif") atualizarAcerto(); });
+document.addEventListener("keydown", ev => { if (ev.key === "Escape" && $("#modal")) fecharModal(); });
+document.addEventListener("submit", async ev => {
+  const f = ev.target; ev.preventDefault();
+  if (f.dataset.form === "acesso") return enviarAcesso(f);
+  if (f.dataset.form === "formas") {
+    try { for (const x of S.d.formas) { const dados = { nome: $("#fp-nome-" + x.codigo).value.trim() || x.nome, conta_receita_id: $("#fp-conta-" + x.codigo).value || null,
+          conta_financeira_id: $("#fp-cf-" + x.codigo).value || null, a_prazo: $("#fp-prazo-ap-" + x.codigo).checked,
+          taxa_percentual: lerNum($("#fp-taxa-" + x.codigo).value) || 0, prazo_dias: parseInt($("#fp-prazo-" + x.codigo).value) || 0 };
+        if (Object.keys(dados).some(k => String(dados[k] ?? "") !== String(x[k] ?? (k === "a_prazo" ? ehAPrazo(x) : "")))) { await S.db.atualizar("formas_pagamento", { empresa_id: S.empresaId, codigo: x.codigo }, dados); Object.assign(x, dados); } }
+      toast("Formas de pagamento salvas."); desenharConteudo(); } catch (e) { toast(e.message, true); }
+    return;
+  }
+  if (f.dataset.form === "modal" && aoEnviarModal) {
+    for (const el of f.querySelectorAll("[required]")) if (!el.value.trim()) { el.focus(); return toast("Preencha os campos obrigatórios.", true); }
+    const b = f.querySelector("button[type=submit]"); b.disabled = true;
+    try { await aoEnviarModal(); fecharModal(); desenharConteudo(); } catch (e) { toast(e.message, true); b.disabled = false; }
+  }
+});
+async function trocarEmpresa(id) { S.empresaId = id; guardar("empresa", id); $("#conteudo") && ($("#conteudo").innerHTML = '<div class="carregando">Carregando…</div>');
+  try { await carregarEmpresa(); } catch (e) { toast(e.message, true); } desenhar(); }
+
+iniciar();
+</script>
+
+</body>
+</html>

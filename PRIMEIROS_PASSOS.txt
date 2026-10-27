@@ -1,0 +1,53 @@
+ALIBER FINANCEIRO - COLOCAR NO AR (uma vez só)
+=============================================
+
+PARTE 1 - BANCO DE DADOS NA NUVEM (Supabase, grátis para começar)
+  1. Entre em https://supabase.com e clique em "Start your project". Entre com a conta do GitHub
+     marketingaliber (ou com o e-mail marketingaliber@gmail.com).
+  2. Clique em "New project":
+       Name: aliber-financeiro
+       Database Password: crie uma senha forte e GUARDE (não vamos precisar dela no dia a dia)
+       Region: South America (São Paulo)
+     Clique em "Create new project" e espere uns 2 minutos.
+  3. No menu da esquerda, clique em "SQL Editor" > "New query".
+     Abra o arquivo supabase\banco.sql no Bloco de Notas, copie TUDO, cole lá e clique em "Run".
+     Tem que aparecer "Success. No rows returned".
+  4. No menu da esquerda: "Project Settings" (engrenagem) > "API". Copie e me mande:
+       - Project URL         (parece com https://abcdefgh.supabase.co)
+       - anon public key     (um texto bem comprido que começa com eyJ...)
+     Essas duas informações não são secretas: elas sozinhas não abrem dado nenhum.
+     NÃO mande a "service_role" key.
+  5. Menu "Authentication" > "URL Configuration":
+       Site URL: https://marketingaliber.github.io/aliber-financeiro/
+     Clique em "Save".
+
+PARTE 2 - GITHUB (onde ficam o painel e o .exe)
+  1. Entre em https://github.com com a conta marketingaliber.
+  2. Clique no "+" (canto de cima) > "New repository":
+       Repository name: aliber-financeiro
+       Public
+       NÃO marque nenhuma opção de README/.gitignore/licença
+     Clique em "Create repository".
+  3. Me avise. Eu envio os arquivos e o GitHub gera o AliberFinanceiro.exe sozinho.
+  4. Depois que eu enviar: no repositório, "Settings" > "Pages":
+       Source: Deploy from a branch
+       Branch: main   pasta: /docs   > Save
+     Em 1 ou 2 minutos o painel fica em https://marketingaliber.github.io/aliber-financeiro/
+
+PARTE 3 - VIRAR ADMINISTRADOR
+  1. Abra o painel e clique em "Criar conta" com marketingaliber@gmail.com. Confirme pelo e-mail.
+  2. No Supabase, "SQL Editor" > "New query", cole a linha abaixo e clique em "Run":
+       insert into admins (user_id) select id from auth.users where email = 'marketingaliber@gmail.com';
+  3. Entre de novo no painel: vai aparecer o menu "Administração".
+
+PARTE 4 - CADA CLIENTE NOVO
+  1. Painel > Administração > "+ Nova loja". Copie a chave da loja.
+  2. No computador do caixa: baixe o AliberFinanceiro.exe, coloque numa pasta (ex.: C:\Aliber Financeiro),
+     abra, vá em Configurações e cole a chave. Marque "Abrir sozinho quando o Windows ligar".
+  3. O dono abre o painel, clica em "Criar conta" e confirma o e-mail.
+     Você vai em Administração > Acessos e libera o e-mail dele.
+  4. No painel, em Configurações > Formas de pagamento: confira a conta de receita de cada forma,
+     em qual caixa/banco o dinheiro cai e as taxas e prazos da maquininha do cliente.
+  5. Em Caixa e bancos: cadastre os bancos do cliente (ou importe junto com o plano) e informe o saldo
+     real de cada um numa data (extrato do banco / dinheiro contado).
+  6. Se o cliente tiver um plano de contas próprio no mesmo formato, use Plano de contas > Importar do Excel.

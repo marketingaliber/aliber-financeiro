@@ -1,0 +1,10 @@
+__pycache__/
+build/
+dist/
+*.spec
+financeiro_config.json
+financeiro_log.txt
+*.db
+*.db-wal
+*.db-shm
+demo_*.html

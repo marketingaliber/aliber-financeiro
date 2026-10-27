@@ -1,0 +1,22 @@
+ALIBER FINANCEIRO 1.0 - sincronizador
+Envia as vendas do PDV+ para o painel online, onde o dono vê a DRE e lança fornecedores e contas a pagar.
+
+O QUE ELE FAZ
+  - Lê o banco do PDV+ (C:\PDV+\.dart_tool\sqflite_common_ffi\databases\navi_db.db) SÓ PARA LEITURA.
+    Nada é alterado no PDV+.
+  - A cada 15 minutos envia o resumo de cada dia: vendas por tipo (balcão, delivery, mesa), formas de
+    pagamento, descontos, taxa de entrega, custo e canceladas. Não envia nomes nem CPF de clientes.
+  - Na primeira vez manda o histórico todo; depois reenvia sempre os últimos 45 dias
+    (assim um cancelamento feito depois também é corrigido).
+
+INSTALAR NO COMPUTADOR DO CAIXA
+  1. Crie a pasta C:\Aliber Financeiro e coloque o AliberFinanceiro.exe dentro.
+  2. Abra o programa > Configurações > cole a CHAVE DA EMPRESA (pegue no painel, Administração) > SALVAR.
+  3. Marque "Abrir sozinho quando o Windows ligar".
+  4. Confira em "Acontecimentos" a linha OK com o total enviado.
+
+SE ALGO DER ERRADO
+  - "banco do PDV+ não encontrado": em Configurações, clique em Procurar e escolha o navi_db.db.
+  - "Chave de sincronização inválida": copie a chave de novo no painel.
+  - "sem conexão com a internet": ele tenta de novo sozinho em 15 minutos.
+  - Histórico de tudo: financeiro_log.txt, na mesma pasta do programa.
