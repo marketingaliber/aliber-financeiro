@@ -4,6 +4,8 @@
 -- Pode rodar de novo sem perder dados (só cria o que ainda não existe
 -- e atualiza as funções).
 --
+-- Versão 1.2: importa fornecedores e contas a pagar das entradas de nota do PDV+.
+--
 -- Plano de contas no modelo gerencial (3 níveis):
 --   1 RECEITA/FATURAMENTO      (receita)
 --   3 CUSTOS VARIÁVEIS         (custo_variavel)
@@ -122,6 +124,14 @@ create table if not exists lancamentos (
 create index if not exists lancamentos_emp_venc on lancamentos (empresa_id, vencimento);
 create index if not exists lancamentos_emp_comp on lancamentos (empresa_id, competencia);
 
+-- Versão 1.2: importação das entradas de nota e dos fornecedores do PDV+
+alter table fornecedores add column if not exists razao_social text;
+alter table fornecedores add column if not exists inscricao_estadual text;
+alter table fornecedores add column if not exists origem text;          -- 'pdv' = veio do PDV+
+alter table lancamentos  add column if not exists origem text;          -- 'pdv' = entrada de nota do PDV+
+alter table lancamentos  add column if not exists origem_id text;       -- id da entrada no PDV+ + '#' + nº da parcela
+create unique index if not exists lancamentos_origem on lancamentos (empresa_id, origem_id);
+
 -- Transferências entre contas internas e acertos de caixa (não entram na DRE)
 create table if not exists movimentos (
   id          uuid primary key default gen_random_uuid(),
@@ -146,6 +156,22 @@ create table if not exists formas_pagamento (
   prazo_dias          int  not null default 0,
   a_prazo             boolean not null default false,   -- crediário: só vira dinheiro quando o cliente paga
   primary key (empresa_id, codigo)
+);
+
+-- Configurações da loja para a importação das compras do PDV+
+create table if not exists config_empresa (
+  empresa_id        uuid primary key references empresas on delete cascade,
+  importar_compras  boolean not null default true,
+  conta_compras_id  uuid references plano_contas on delete set null,        -- conta padrão (3.2.1 Insumos)
+  banco_compras_id  uuid references contas_financeiras on delete set null,  -- "paga com" padrão
+  compras_desde     date not null default (date_trunc('month', current_date))::date  -- não importa notas mais antigas
+);
+
+-- Contas importadas que o usuário excluiu no painel: não voltam na próxima sincronização
+create table if not exists pdv_ignorados (
+  empresa_id uuid not null references empresas on delete cascade,
+  origem_id  text not null,
+  primary key (empresa_id, origem_id)
 );
 
 -- Resumo diário enviado pelo sincronizador (.exe) — só o sincronizador grava
@@ -188,6 +214,8 @@ alter table fornecedores       enable row level security;
 alter table lancamentos        enable row level security;
 alter table movimentos         enable row level security;
 alter table formas_pagamento   enable row level security;
+alter table config_empresa     enable row level security;
+alter table pdv_ignorados      enable row level security;
 alter table vendas_dia         enable row level security;
 alter table pagamentos_dia     enable row level security;
 
@@ -207,7 +235,7 @@ create policy admin_edita on membros for all using (eh_admin()) with check (eh_a
 do $$
 declare t text;
 begin
-  foreach t in array array['plano_contas','contas_financeiras','fornecedores','lancamentos','movimentos','formas_pagamento'] loop
+  foreach t in array array['plano_contas','contas_financeiras','fornecedores','lancamentos','movimentos','formas_pagamento','config_empresa','pdv_ignorados'] loop
     execute format('drop policy if exists acesso on %I', t);
     execute format('create policy acesso on %I for all using (pode_ver(empresa_id)) with check (pode_ver(empresa_id))', t);
   end loop;
@@ -367,6 +395,10 @@ begin
                  (3,'Pix','1.1.1'),(4,'Cartão de débito','1.1.2'),(5,'Forma 5','1.1.8'),
                  (6,'Forma 6','1.1.8'),(7,'Forma 7','1.1.8')) as f(codigo, nome, conta)
   on conflict do nothing;
+
+  insert into config_empresa (empresa_id, conta_compras_id, banco_compras_id)
+  values (new.id, (select id from plano_contas where empresa_id = new.id and codigo = '3.2.1'), banco)
+  on conflict do nothing;
   return new;
 end $$;
 
@@ -385,7 +417,8 @@ declare
   e   uuid;
   ini date := (dados->>'data_ini')::date;
   fim date := (dados->>'data_fim')::date;
-  n1 int; n2 int;
+  n1 int; n2 int; nu int; nf int := 0; nl int := 0; na int := 0; nx int := 0;
+  cfg record; rf record; rp record; forn record; conta uuid;
 begin
   select id into e from empresas where chave_sync = chave and ativa;
   if e is null then
@@ -423,9 +456,70 @@ begin
     from pagamentos_dia p where p.empresa_id = e
   on conflict do nothing;
 
+  -- ---- fornecedores e contas a pagar das entradas de nota (sincronizador 1.2 ou mais novo)
+  if dados ? 'compras' then
+    insert into config_empresa (empresa_id, conta_compras_id, banco_compras_id)
+    values (e, (select id from plano_contas where empresa_id = e and codigo = '3.2.1'),
+               (select id from contas_financeiras where empresa_id = e and tipo = 'banco' and ativa order by criado_em limit 1))
+    on conflict do nothing;
+    select * into cfg from config_empresa where empresa_id = e;
+
+    if cfg.importar_compras then
+      for rf in select * from jsonb_to_recordset(coalesce(dados->'fornecedores','[]')) as x(
+                 cpf_cnpj text, razao_social text, nome_fantasia text, fone text, inscricao_estadual text) loop
+        continue when coalesce(rf.cpf_cnpj, '') = '';
+        update fornecedores set razao_social = coalesce(nullif(rf.razao_social, ''), razao_social),
+                                inscricao_estadual = coalesce(nullif(rf.inscricao_estadual, ''), inscricao_estadual),
+                                fone = coalesce(nullif(fone, ''), nullif(rf.fone, ''))
+         where empresa_id = e and regexp_replace(coalesce(cpf_cnpj, ''), '\D', '', 'g') = rf.cpf_cnpj;
+        if not found then
+          insert into fornecedores (empresa_id, nome, razao_social, cpf_cnpj, fone, inscricao_estadual, origem, obs)
+          values (e, coalesce(nullif(rf.nome_fantasia, ''), rf.razao_social), rf.razao_social, rf.cpf_cnpj, rf.fone,
+                  rf.inscricao_estadual, 'pdv', 'Importado do PDV+');
+          nf := nf + 1;
+        end if;
+      end loop;
+
+      for rp in select * from jsonb_to_recordset(coalesce(dados->'compras','[]')) as x(
+                 origem_id text, cpf_cnpj text, descricao text, documento text, competencia date, vencimento date,
+                 valor numeric, parcela int, parcelas int, data_entrada date) loop
+        continue when rp.data_entrada < cfg.compras_desde or coalesce(rp.valor, 0) <= 0;
+        continue when exists (select 1 from pdv_ignorados where empresa_id = e and origem_id = rp.origem_id);
+        select id, conta_padrao_id into forn from fornecedores
+         where empresa_id = e and coalesce(rp.cpf_cnpj, '') <> ''
+           and regexp_replace(coalesce(cpf_cnpj, ''), '\D', '', 'g') = rp.cpf_cnpj
+         order by ativo desc, criado_em limit 1;
+        if exists (select 1 from lancamentos where empresa_id = e and origem_id = rp.origem_id) then
+          -- nota corrigida no PDV+: acerta valor e vencimento do que ainda não foi pago
+          update lancamentos set valor = rp.valor, vencimento = rp.vencimento
+           where empresa_id = e and origem_id = rp.origem_id and pago_em is null
+             and (valor <> rp.valor or vencimento <> rp.vencimento);
+          get diagnostics nu = row_count; na := na + nu;
+        else
+          conta := coalesce(forn.conta_padrao_id, cfg.conta_compras_id,
+                            (select id from plano_contas where empresa_id = e and codigo = '3.2.1'),
+                            (select id from plano_contas where empresa_id = e and grupo = 'custo_variavel' and not sintetica order by codigo limit 1));
+          insert into lancamentos (empresa_id, descricao, fornecedor_id, conta_id, conta_financeira_id, valor, competencia,
+                                   vencimento, documento, parcela, parcelas, origem, origem_id, obs)
+          values (e, rp.descricao, forn.id, conta, cfg.banco_compras_id, rp.valor, coalesce(rp.competencia, rp.data_entrada),
+                  coalesce(rp.vencimento, rp.data_entrada), rp.documento, rp.parcela, rp.parcelas, 'pdv', rp.origem_id,
+                  'Importado da entrada de nota do PDV+');
+          nl := nl + 1;
+        end if;
+      end loop;
+
+      -- entrada excluída no PDV+: sai daqui também, se ainda não foi paga
+      delete from lancamentos l
+       where l.empresa_id = e and l.origem = 'pdv' and l.pago_em is null
+         and not exists (select 1 from jsonb_array_elements(coalesce(dados->'compras','[]')) x where x->>'origem_id' = l.origem_id);
+      get diagnostics nx = row_count;
+    end if;
+  end if;
+
   update empresas set ultima_sync = now(), versao_sync = dados->>'versao' where id = e;
   return jsonb_build_object('empresa', (select nome from empresas where id = e),
-                            'dias', n1, 'pagamentos', n2);
+                            'dias', n1, 'pagamentos', n2, 'fornecedores_novos', nf,
+                            'contas_novas', nl, 'contas_atualizadas', na, 'contas_removidas', nx);
 end $$;
 
 revoke all on function sincronizar(text, jsonb) from public;

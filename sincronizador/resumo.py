@@ -129,11 +129,13 @@ def montar(db_path, data_ini, data_fim, versao=""):
         })
     pagamentos_dia = [{"data": dia, "categoria": cat, "forma": forma, "qtd": q, "valor": _r(val)}
                       for (dia, cat, forma), (q, val) in sorted(pg.items())]
+    fornecedores, compras = fornecedores_e_compras(db_path)
     return {
         "versao": versao,
         "gerado_em": datetime.now().isoformat(timespec="seconds"),
         "data_ini": ini, "data_fim": data_fim.isoformat(),
         "vendas_dia": vendas_dia, "pagamentos_dia": pagamentos_dia,
+        "fornecedores": fornecedores, "compras": compras,   # sempre a lista completa (não só o período)
     }
 
 
@@ -142,5 +144,142 @@ def totais(resumo):
     t = {"vendas": sum(d["qtd"] for d in resumo["vendas_dia"]),
          "faturamento": _r(sum(d["total"] for d in resumo["vendas_dia"])),
          "recebido": _r(sum(p["valor"] for p in resumo["pagamentos_dia"])),
-         "canceladas": sum(d["canceladas_qtd"] for d in resumo["vendas_dia"])}
+         "canceladas": sum(d["canceladas_qtd"] for d in resumo["vendas_dia"]),
+         "notas": len({c["origem_id"].split("#")[0] for c in resumo.get("compras", [])}),
+         "fornecedores": len(resumo.get("fornecedores", []))}
     return t
+
+
+# ---------------------------------------------------------------- compras (entrada de notas) e fornecedores
+import base64
+import gzip
+import io
+import re
+import xml.etree.ElementTree as ET
+import zipfile
+import zlib
+
+
+def so_digitos(s):
+    return re.sub(r"\D", "", s or "")
+
+
+def _abrir_xml(blob):
+    """O PDV+ guarda o XML da nota compactado. Tenta os formatos comuns e devolve o texto do XML."""
+    if not blob:
+        return None
+    dado = bytes(blob)
+    tentativas = [lambda b: b, gzip.decompress, zlib.decompress, lambda b: zlib.decompress(b, -15),
+                  lambda b: zipfile.ZipFile(io.BytesIO(b)).read(zipfile.ZipFile(io.BytesIO(b)).namelist()[0])]
+    for _ in range(2):
+        for t in tentativas:
+            try:
+                x = t(dado)
+            except Exception:
+                continue
+            if b"<" in x[:400] and (b"infNFe" in x or b"<NFe" in x or b"nfeProc" in x):
+                return x
+        try:                                    # às vezes vem em base64
+            dado = base64.b64decode(dado, validate=False)
+        except Exception:
+            break
+    return None
+
+
+def ler_nota(blob):
+    """Parcelas (duplicatas), total e emitente do XML da NF-e. Devolve {} se não der para ler."""
+    x = _abrir_xml(blob)
+    if not x:
+        return {}
+    try:
+        raiz = ET.fromstring(x)
+    except ET.ParseError:
+        return {}
+    nome = lambda el: el.tag.rsplit("}", 1)[-1]
+    filho = lambda el, n: next((c for c in el if nome(c) == n), None)
+    txt = lambda el, n: (filho(el, n).text or "").strip() if el is not None and filho(el, n) is not None else ""
+    out = {"parcelas": []}
+    for el in raiz.iter():
+        n = nome(el)
+        if n == "dup":
+            try:
+                v = float(txt(el, "vDup") or 0)
+            except ValueError:
+                v = 0
+            if v > 0:
+                out["parcelas"].append({"numero": txt(el, "nDup"), "vencimento": txt(el, "dVenc")[:10], "valor": round(v, 2)})
+        elif n == "ICMSTot":
+            try:
+                out["total"] = float(txt(el, "vNF") or 0)
+            except ValueError:
+                pass
+        elif n == "ide":
+            out["emissao"] = (txt(el, "dhEmi") or txt(el, "dEmi"))[:10]
+        elif n == "emit":
+            out["emit_cnpj"] = so_digitos(txt(el, "CNPJ") or txt(el, "CPF"))
+            out["emit_nome"] = txt(el, "xNome")
+            out["emit_fantasia"] = txt(el, "xFant")
+            out["emit_ie"] = txt(el, "IE")
+            end = filho(el, "enderEmit")
+            out["emit_fone"] = txt(end, "fone") if end is not None else ""
+    return out
+
+
+def fornecedores_e_compras(db_path):
+    """Fornecedores cadastrados no PDV+ e as contas a pagar geradas pelas entradas de mercadoria.
+
+    Cada entrada vira uma conta por parcela (duplicata da NF-e). Sem duplicata no XML, vira uma
+    conta só, com vencimento na emissão da nota (ou na data da entrada, se não tiver nota)."""
+    con = conectar(db_path)
+    try:
+        tabelas = {r[0] for r in con.execute("select name from sqlite_master where type='table'")}
+        if not {"entrada", "fornecedor"} <= tabelas:
+            return [], []
+        fornecedores = {}
+        for f in con.execute("select * from fornecedor where data_hora_deletado is null"):
+            doc = so_digitos(f["cpf_cnpj"])
+            if doc:
+                fornecedores[doc] = {"cpf_cnpj": doc, "razao_social": (f["razao_social"] or "").strip(),
+                                     "nome_fantasia": (f["nome_fantasia"] or "").strip(), "fone": f["fone"] or "",
+                                     "inscricao_estadual": f["inscricao_estadual"] or ""}
+        tem_nota = "nota_fiscal_compra" in tabelas
+        entradas = con.execute(
+            f"""select e.id_entrada, e.data_hora, e.tipo_entrada, f.cpf_cnpj fcnpj, f.razao_social frazao, f.nome_fantasia ffant,
+                       {"n.numero, n.serie, n.chave_acesso, n.data_hora_emissao, n.valor_total, n.nome_fornecedor, n.cpf_cnpj_fornecedor, n.xml_compactado, n.situacao"
+                        if tem_nota else "null numero, null serie, null chave_acesso, null data_hora_emissao, null valor_total, null nome_fornecedor, null cpf_cnpj_fornecedor, null xml_compactado, null situacao"},
+                       (select coalesce(sum(i.preco_custo_total),0) from entrada_item i where i.id_entrada=e.id_entrada and i.data_hora_deletado is null) itens
+                  from entrada e
+                  left join fornecedor f on f.id_fornecedor = e.id_fornecedor
+                  {"left join nota_fiscal_compra n on n.id_nota_fiscal_compra = e.id_nota_fiscal_compra" if tem_nota else ""}
+                 where e.data_hora_deletado is null""").fetchall()
+    finally:
+        con.close()
+
+    compras = []
+    for e in entradas:
+        nota = ler_nota(e["xml_compactado"]) if e["xml_compactado"] else {}
+        doc = so_digitos(e["fcnpj"] or e["cpf_cnpj_fornecedor"] or nota.get("emit_cnpj"))
+        nome = (e["ffant"] or e["frazao"] or e["nome_fornecedor"] or nota.get("emit_fantasia") or nota.get("emit_nome") or "").strip()
+        if not doc and not e["numero"]:
+            continue                       # entrada interna (sem fornecedor e sem nota): não é conta a pagar
+        if doc and doc not in fornecedores:  # fornecedor só na nota: cadastra também
+            fornecedores[doc] = {"cpf_cnpj": doc, "razao_social": (e["nome_fornecedor"] or nota.get("emit_nome") or nome).strip(),
+                                 "nome_fantasia": (nota.get("emit_fantasia") or "").strip(), "fone": nota.get("emit_fone", ""),
+                                 "inscricao_estadual": nota.get("emit_ie", "")}
+        data_entrada = (e["data_hora"] or "")[:10]
+        emissao = (e["data_hora_emissao"] or nota.get("emissao") or data_entrada)[:10]
+        total = float(e["valor_total"] or nota.get("total") or e["itens"] or 0)
+        if total <= 0:
+            continue
+        parcelas = nota.get("parcelas") or [{"numero": "1", "vencimento": emissao, "valor": round(total, 2)}]
+        num = f"NF {e['numero']}" if e["numero"] else "Entrada de mercadoria"
+        for i, p in enumerate(parcelas, 1):
+            compras.append({
+                "origem_id": f"{e['id_entrada']}#{i}", "cpf_cnpj": doc,
+                "descricao": f"{num} · {nome}" if nome else num,
+                "documento": (f"NF {e['numero']}/{e['serie']}" if e["numero"] else "") + (f" parc. {p['numero'] or i}" if len(parcelas) > 1 else ""),
+                "competencia": emissao, "vencimento": p["vencimento"] or emissao, "valor": p["valor"],
+                "parcela": i if len(parcelas) > 1 else None, "parcelas": len(parcelas) if len(parcelas) > 1 else None,
+                "data_entrada": data_entrada,
+            })
+    return list(fornecedores.values()), compras

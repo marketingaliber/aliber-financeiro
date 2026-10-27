@@ -34,6 +34,16 @@ DRE: Receita − Custos variáveis = **Margem de contribuição** − Despesas f
   **Caixa**: vendas quando o dinheiro cai (cartão no prazo da maquininha, crediário quando pago) e contas pela data do pagamento.
 - Recebimento de crediário (venda sem itens no PDV+) não conta como venda nova. O troco é descontado do dinheiro.
 
+## Compras e fornecedores do PDV+ (sincronizador 1.2)
+- Os fornecedores cadastrados no PDV+, e os que só aparecem nas notas, entram em Fornecedores com a etiqueta PDV+.
+- Cada **entrada de nota** vira conta a pagar: uma por boleto (duplicata do XML da NF-e), com valor e vencimento.
+  Sem boleto, vira uma conta só, vencendo na emissão. Entrada sem nota, mas com fornecedor, usa o total dos itens.
+- Conta: a "Conta padrão" do fornecedor ou a conta padrão das compras (3.2.1). Configuração em Configurações > Compras do PDV+.
+- Nota corrigida no PDV+ atualiza a conta ainda não paga; entrada excluída no PDV+ sai do painel.
+  Conta paga ou excluída no painel não é tocada nem volta.
+- Só entram entradas a partir da data "Importar notas com entrada a partir de" (padrão: início do mês em que a loja começou a usar).
+- Ao atualizar o banco na nuvem, rode o `supabase/banco.sql` de novo no SQL Editor (pode rodar quantas vezes quiser).
+
 ## Caixa e bancos
 Cada loja tem suas contas de caixa, banco e investimento, com saldo inicial. O saldo soma as vendas do PDV+ (já sem a taxa,
 na data em que caem), as contas pagas e recebidas, as **transferências entre contas internas** e os **acertos de caixa**.

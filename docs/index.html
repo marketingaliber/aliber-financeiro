@@ -219,7 +219,7 @@ input[type=file] { font-size: 14px }
    ===================================================================== */
 const CONFIG = {"supabaseUrl": "https://gdoklolbjrnnqcklgjtt.supabase.co", "supabaseAnon": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdkb2tsb2xianJubnFja2xnanR0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMwNTY5ODQsImV4cCI6MjEwODYzMjk4NH0.YoBdRMey8JKVYR7HWeTZsRVWxOFq1L94E7nq5qtQYd0"};
 const DEMO_RESUMO = /*DEMO*/null/*FIM*/;
-const VERSAO_PAINEL = "2.0";
+const VERSAO_PAINEL = "2.1";
 
 /* ---------------------------------------------------------------- utilidades */
 const $ = s => document.querySelector(s);
@@ -523,12 +523,13 @@ function bancoDemo() {
     contas_financeiras: [{ id: uid(), empresa_id: E, nome: "Caixa dinheiro", tipo: "caixa", saldo_inicial: 300, data_saldo: addDias(primeiro, -1), ativa: true },
       { id: uid(), empresa_id: E, nome: "Santander", tipo: "banco", saldo_inicial: 6000, data_saldo: addDias(primeiro, -1), ativa: true }],
     vendas_dia: base.vendas_dia.map(x => ({ ...x, empresa_id: E })), pagamentos_dia: base.pagamentos_dia.map(x => ({ ...x, empresa_id: E })),
-    fornecedores: [], lancamentos: [], movimentos: [] };
+    fornecedores: [], lancamentos: [], movimentos: [], pdv_ignorados: [], config_empresa: [] };
   const cod = c => T.plano_contas.find(x => x.codigo === c).id, [caixa, banco] = T.contas_financeiras.map(b => b.id);
   T.formas_pagamento = [[0, "Dinheiro", "1.1.7", caixa], [1, "Cartão de crédito", "1.1.2", banco, 3.19, 30], [2, "Crediário", "1.1.4", null], [3, "Pix", "1.1.1", banco, 0.99, 0],
     [4, "Cartão de débito", "1.1.2", banco, 1.39, 1], [5, "Forma 5", "1.1.8", banco], [6, "Forma 6", "1.1.8", banco], [7, "Forma 7", "1.1.8", banco]]
     .map(([codigo, nome, c, cf, taxa, prazo]) => ({ empresa_id: E, codigo, nome, conta_receita_id: cod(c), conta_financeira_id: cf, taxa_percentual: taxa || 0, prazo_dias: prazo || 0, a_prazo: codigo === 2 }));
   exemplosDemo(T, E, base);
+  T.config_empresa.push({ empresa_id: E, importar_compras: true, conta_compras_id: cod("3.2.1"), banco_compras_id: banco, compras_desde: inicioMes(addDias(primeiro, -40)) });
   const casa = (l, f) => Object.keys(f).every(k => l[k] === f[k]);
   return {
     modo: "demo", empresaDemo: E,
@@ -562,11 +563,12 @@ function exemplosDemo(T, E, base) {
   const [caixa, banco] = T.contas_financeiras.map(b => b.id);
   const F = {}; [["Atacadão Ubá", "3.2.1", "12.345.678/0001-90"], ["Moinho Zona da Mata", "3.2.2"], ["Laticínios Serra", "3.2.3"], ["Distribuidora Bebidas Zona da Mata", "3.2.1"],
     ["Supergasbras", "4.2.5"], ["Imobiliária Central", "4.2.4"], ["Cemig", "4.2.3"], ["Copasa", "4.2.5"], ["Vivo Empresas", "4.2.2"], ["Escritório Contábil Ubá", "4.2.11"], ["Aliber Informática", "4.2.12"]]
-    .forEach(([nome, c, doc]) => { const f = { id: uid(), empresa_id: E, nome, cpf_cnpj: doc || "", fone: "", email: "", conta_padrao_id: conta(c), obs: "Exemplo", ativo: true }; T.fornecedores.push(f); F[nome] = f.id; });
+    .forEach(([nome, c, doc], i) => { const f = { id: uid(), empresa_id: E, nome, cpf_cnpj: doc || "", fone: "", email: "", conta_padrao_id: conta(c), obs: "Exemplo", ativo: true, origem: i < 4 ? "pdv" : null }; T.fornecedores.push(f); F[nome] = f.id; });
   const ultimo = base.vendas_dia.reduce((m, x) => x.data > m ? x.data : m, "0000") || hoje();
   const mes = inicioMes(ultimo), ant = addMeses(mes, -1), prox = addMeses(mes, 1), hj = hoje();
   const L = (descricao, c, valor, venc, opc = {}) => { const pago = opc.pago === undefined ? venc < hj : opc.pago;
-    T.lancamentos.push({ id: uid(), empresa_id: E, descricao, fornecedor_id: opc.f ? F[opc.f] : null, conta_id: conta(c), conta_financeira_id: opc.cf === undefined ? banco : opc.cf,
+    const pdv = opc.f && ["Atacadão Ubá", "Moinho Zona da Mata", "Laticínios Serra", "Distribuidora Bebidas Zona da Mata"].includes(opc.f) && opc.doc;
+    T.lancamentos.push({ id: uid(), empresa_id: E, descricao: pdv ? `${opc.doc} · ${opc.f}` : descricao, origem: pdv ? "pdv" : null, origem_id: pdv ? uid() + "#1" : null, fornecedor_id: opc.f ? F[opc.f] : null, conta_id: conta(c), conta_financeira_id: opc.cf === undefined ? banco : opc.cf,
       valor, competencia: opc.comp || venc, vencimento: venc, pago_em: pago ? (opc.pagoEm || venc) : null, valor_pago: pago ? (opc.vp ?? valor) : null,
       documento: opc.doc || "", parcela: opc.parc || null, parcelas: opc.parcs || null, grupo_parcelas: null, obs: "", criado_em: new Date().toISOString() }); };
   const d = (m, dia) => m.slice(0, 8) + pad(dia);
@@ -585,8 +587,8 @@ function exemplosDemo(T, E, base) {
     L("DAS - Simples Nacional", "3.1.1", Math.round(1180 * k), d(m, 20), { comp: addDias(d(m, 1), -1) });
     L("Compra de insumos", "3.2.1", 2180, d(m, 6), { f: "Atacadão Ubá", doc: "NF 45122" });
     L("Farinha de trigo", "3.2.2", 980, d(m, 11), { f: "Moinho Zona da Mata", doc: "NF 1188" });
-    L("Queijos e frios", "3.2.3", 1625, d(m, 12), { f: "Laticínios Serra" });
-    L("Bebidas", "3.2.1", 1310, d(m, 22), { f: "Distribuidora Bebidas Zona da Mata" });
+    L("Queijos e frios", "3.2.3", 1625, d(m, 12), { f: "Laticínios Serra", doc: "NF 2207" });
+    L("Bebidas", "3.2.1", 1310, d(m, 22), { f: "Distribuidora Bebidas Zona da Mata", doc: "NF 9031" });
     L("Gás P45", "4.2.5", 455, d(m, 9), { f: "Supergasbras", cf: caixa }); L("Gás P45", "4.2.5", 455, d(m, 23), { f: "Supergasbras", cf: caixa });
     L("Impulsionamento Instagram", "5.1.2", 300, d(m, 3));
     L("Tarifa do pacote de serviços", "4.6.1", 42.9, fimMes(m));
@@ -604,7 +606,7 @@ function exemplosDemo(T, E, base) {
 /* ---------------------------------------------------------------- estado */
 const S = {
   db: null, admin: false, email: "", empresas: [], empresaId: null,
-  d: { plano: [], fornecedores: [], lancamentos: [], formas: [], vendas: [], pagamentos: [], bancos: [], movimentos: [] },
+  d: { plano: [], fornecedores: [], lancamentos: [], formas: [], vendas: [], pagamentos: [], bancos: [], movimentos: [], config: null },
   periodo: lembrar("periodo", { preset: "mes" }),
   dre: Object.assign({ regime: "competencia", cmv: "compras", mensal: false, zeradas: false, fechados: [] }, lembrar("dre2", {})),
   contas: { status: "aberto", tipo: "", busca: "", fornecedor: "", conta: "", de: "", ate: "" },
@@ -662,10 +664,10 @@ async function depoisDeEntrar() {
 }
 async function carregarEmpresa() {
   const eq = { empresa_id: S.empresaId };
-  const [plano, fornecedores, lancamentos, formas, vendas, pagamentos, bancos, movimentos] = await Promise.all(
-    ["plano_contas", "fornecedores", "lancamentos", "formas_pagamento", "vendas_dia", "pagamentos_dia", "contas_financeiras", "movimentos"].map(t => S.db.lista(t, eq)));
+  const [plano, fornecedores, lancamentos, formas, vendas, pagamentos, bancos, movimentos, config] = await Promise.all(
+    ["plano_contas", "fornecedores", "lancamentos", "formas_pagamento", "vendas_dia", "pagamentos_dia", "contas_financeiras", "movimentos", "config_empresa"].map(t => S.db.lista(t, eq)));
   S.d = { plano, fornecedores, lancamentos, formas: formas.sort((a, b) => a.codigo - b.codigo), vendas, pagamentos,
-    bancos: bancos.sort((a, b) => (a.tipo === "caixa" ? 0 : 1) - (b.tipo === "caixa" ? 0 : 1) || a.nome.localeCompare(b.nome)), movimentos };
+    bancos: bancos.sort((a, b) => (a.tipo === "caixa" ? 0 : 1) - (b.tipo === "caixa" ? 0 : 1) || a.nome.localeCompare(b.nome)), movimentos, config: config[0] || null };
   if (!S.d.bancos.some(b => b.id === S.banco.sel)) S.banco.sel = S.d.bancos[0]?.id || null;
 }
 const VIEWS = ["resumo", "dre", "contas", "bancos", "fornecedores", "plano", "config", "admin"];
@@ -901,7 +903,7 @@ function desenharListaContas() {
   if (!lista.length) { el.innerHTML = `<div class="vazio">Nenhum lançamento com esses filtros. ${S.d.lancamentos.length ? "" : '<br><button class="bt pri" data-acao="nova-conta" style="margin-top:10px">Lançar a primeira conta</button>'}</div>`; return; }
   el.innerHTML = `<table><thead><tr><th>Vencimento</th><th>Descrição</th><th>Conta</th><th class="v">Valor</th><th>Situação</th><th></th></tr></thead><tbody>${lista.map(l => { const s = situacao(l), c = contaPorId(l.conta_id), f = fornPorId(l.fornecedor_id), ent = ehEntrada(l), cf = bancoPorId(l.conta_financeira_id);
     return `<tr><td class="num">${dataBR(l.vencimento)}</td>
-      <td>${ent ? '<span class="pill ok">entrada</span> ' : ""}${esc(l.descricao)}${l.parcelas > 1 ? ` <span class="nota">(${l.parcela}/${l.parcelas})</span>` : ""}<span class="sec">${esc([f?.nome, l.documento].filter(Boolean).join(" · ")) || "&nbsp;"}</span></td>
+      <td>${ent ? '<span class="pill ok">entrada</span> ' : ""}${l.origem === "pdv" ? '<span class="pill pdv" title="Importada da entrada de nota do PDV+">PDV+</span> ' : ""}${esc(l.descricao)}${l.parcelas > 1 ? ` <span class="nota">(${l.parcela}/${l.parcelas})</span>` : ""}<span class="sec">${esc([f?.nome, l.documento].filter(Boolean).join(" · ")) || "&nbsp;"}</span></td>
       <td><span class="cod">${esc(c?.codigo || "")}</span> ${esc(c?.nome || "")}<span class="sec">competência ${mesCurto(l.competencia)}${cf ? " · " + esc(cf.nome) : ""}</span></td>
       <td class="v ${ent ? "pos" : ""}">${brl(l.valor)}${l.pago_em && +l.valor_pago !== +l.valor ? `<span class="sec">${ent ? "recebido" : "pago"} ${brl(l.valor_pago)}</span>` : ""}</td>
       <td><span class="pill ${s.cls}">${s.txt}</span></td>
@@ -982,7 +984,7 @@ function vFornecedores() {
     const aberto = ls.filter(l => !l.pago_em).reduce((s, l) => s + +l.valor, 0), venc = ls.some(l => !l.pago_em && l.vencimento < h);
     const pago = ls.filter(l => l.pago_em && l.pago_em >= P.ini && l.pago_em <= P.fim).reduce((s, l) => s + +(l.valor_pago ?? l.valor), 0);
     const c = contaPorId(f.conta_padrao_id);
-    return `<tr${f.ativo ? "" : ' style="opacity:.6"'}><td><b>${esc(f.nome)}</b>${f.ativo ? "" : ' <span class="pill neu">inativo</span>'}<span class="sec">${esc([f.cpf_cnpj, f.fone, f.email].filter(Boolean).join(" · ")) || "&nbsp;"}</span></td>
+    return `<tr${f.ativo ? "" : ' style="opacity:.6"'}><td><b>${esc(f.nome)}</b>${f.origem === "pdv" ? ' <span class="pill pdv" title="Cadastro importado do PDV+">PDV+</span>' : ""}${f.ativo ? "" : ' <span class="pill neu">inativo</span>'}<span class="sec">${esc([f.cpf_cnpj, f.fone, f.email].filter(Boolean).join(" · ")) || "&nbsp;"}</span></td>
       <td>${c ? `<span class="cod">${esc(c.codigo)}</span> ${esc(c.nome)}` : '<span class="nota">–</span>'}</td>
       <td class="v">${brl(pago)}</td><td class="v ${venc ? "neg" : ""}">${brl(aberto)}</td>
       <td class="acoes"><button class="bt mini" data-acao="conta-do-forn" data-id="${f.id}">Nova conta</button><button class="bt mini" data-acao="editar-forn" data-id="${f.id}">Editar</button></td></tr>`; }).join("");
@@ -1206,6 +1208,17 @@ function vConfig() {
     <p class="nota">A taxa vai para 3.1.3 Taxa de cartões. "Crediário" marca a forma que só vira dinheiro quando o cliente paga. Exemplo de taxas: crédito 3,19% em 30 dias; débito 1,39% em 1 dia; Pix 0,99% na hora.</p>
     <div class="barra" style="justify-content:flex-end"><button class="bt azul" type="submit">Salvar formas de pagamento</button></div></form>
   </section>
+  <section class="painel"><h2>Compras do PDV+ <small>fornecedores e contas a pagar vindos da entrada de notas</small></h2>
+    ${S.d.config ? `<form data-form="compras"><div class="duas" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:12px">
+      <label class="check" style="grid-column:1/-1"><input type="checkbox" id="cp-importar" ${S.d.config.importar_compras ? "checked" : ""}> Importar as entradas de nota e os fornecedores do PDV+</label>
+      <label class="campo">Conta padrão das compras<select id="cp-conta">${opcoesPlano(S.d.config.conta_compras_id, { saida: true })}</select></label>
+      <label class="campo">Paga com (padrão)<select id="cp-banco">${opcoesBancos(S.d.config.banco_compras_id)}</select></label>
+      <label class="campo">Importar notas com entrada a partir de<input type="date" id="cp-desde" required value="${S.d.config.compras_desde}"></label></div>
+      <p class="nota">Cada entrada de nota no PDV+ vira uma conta a pagar por boleto (parcela da NF-e), com o vencimento da nota. Sem boleto na nota, vira uma conta só, vencendo na emissão.
+      O fornecedor que tiver "Conta padrão" no cadastro usa a dele. Conta paga ou editada no painel não é alterada; conta excluída aqui não volta.</p>
+      <div class="barra" style="justify-content:flex-end"><button class="bt azul" type="submit">Salvar</button></div></form>`
+      : `<p class="nota" style="margin:0">Aparece depois da primeira sincronização com o Aliber Financeiro 1.2 ou mais novo.</p>`}
+  </section>
   <section class="painel"><h2>Sincronização com o PDV+</h2>
     <p style="margin:0 0 6px">${infoSync()}${e?.versao_sync ? ` · sincronizador v${esc(e.versao_sync)}` : ""}.</p>
     <p class="nota" style="margin:0">O programa <b>Aliber Financeiro</b> no computador do caixa envia as vendas a cada 15 minutos. Se a data acima estiver antiga, confira se o programa está aberto e com internet.</p>
@@ -1284,9 +1297,11 @@ document.addEventListener("click", async ev => {
     if (a === "excluir-conta") {
       const irmas = l.grupo_parcelas ? S.d.lancamentos.filter(x => x.grupo_parcelas === l.grupo_parcelas && !x.pago_em && x.id !== l.id) : [];
       return abrirModal("Excluir lançamento", `<p style="margin:0">Excluir <b>${esc(l.descricao)}</b> de ${brl(l.valor)}, vencimento ${dataBR(l.vencimento)}?</p>
+        ${l.origem === "pdv" ? '<p class="nota" style="margin:0">Esta conta veio de uma entrada de nota do PDV+. Depois de excluída, ela não volta nas próximas sincronizações.</p>' : ""}
         ${irmas.length ? `<label class="check"><input type="checkbox" id="ex-todas"> Excluir também as outras ${irmas.length} parcela(s) em aberto</label>` : ""}`, async () => {
         const alvo = [l, ...($("#ex-todas")?.checked ? irmas : [])];
-        for (const x of alvo) await S.db.excluir("lancamentos", { id: x.id });
+        for (const x of alvo) { if (x.origem === "pdv" && x.origem_id) await S.db.inserir("pdv_ignorados", [{ empresa_id: S.empresaId, origem_id: x.origem_id }]).catch(() => {});
+          await S.db.excluir("lancamentos", { id: x.id }); }
         S.d.lancamentos = S.d.lancamentos.filter(x => !alvo.includes(x)); toast(alvo.length > 1 ? `${alvo.length} lançamentos excluídos.` : "Lançamento excluído."); }, "Excluir");
     }
     if (a === "contas-status") { S.contas.status = el.dataset.v; document.querySelectorAll('[data-acao="contas-status"]').forEach(b => b.classList.toggle("on", b === el)); return desenharListaContas(); }
@@ -1338,6 +1353,12 @@ document.addEventListener("keydown", ev => { if (ev.key === "Escape" && $("#moda
 document.addEventListener("submit", async ev => {
   const f = ev.target; ev.preventDefault();
   if (f.dataset.form === "acesso") return enviarAcesso(f);
+  if (f.dataset.form === "compras") {
+    try { const dados = { importar_compras: $("#cp-importar").checked, conta_compras_id: $("#cp-conta").value || null, banco_compras_id: $("#cp-banco").value || null, compras_desde: $("#cp-desde").value };
+      await S.db.atualizar("config_empresa", { empresa_id: S.empresaId }, dados); Object.assign(S.d.config, dados); toast("Configuração das compras salva."); }
+    catch (e) { toast(e.message, true); }
+    return;
+  }
   if (f.dataset.form === "formas") {
     try { for (const x of S.d.formas) { const dados = { nome: $("#fp-nome-" + x.codigo).value.trim() || x.nome, conta_receita_id: $("#fp-conta-" + x.codigo).value || null,
           conta_financeira_id: $("#fp-cf-" + x.codigo).value || null, a_prazo: $("#fp-prazo-ap-" + x.codigo).checked,

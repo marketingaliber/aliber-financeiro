@@ -3,7 +3,9 @@
 import os
 import sqlite3
 import sys
+import gzip
 import tempfile
+import zlib
 from datetime import date
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -51,6 +53,45 @@ def criar_banco(caminho):
     c.close()
 
 
+XML_3_PARCELAS = """<?xml version="1.0" encoding="UTF-8"?><nfeProc xmlns="http://www.portalfiscal.inf.br/nfe"><NFe><infNFe Id="NFe1">
+<ide><nNF>4512</nNF><dhEmi>2026-10-05T10:00:00-03:00</dhEmi></ide>
+<emit><CNPJ>12345678000190</CNPJ><xNome>ATACADAO UBA LTDA</xNome><xFant>Atacadão Ubá</xFant><enderEmit><fone>3235310000</fone></enderEmit><IE>123</IE></emit>
+<total><ICMSTot><vNF>900.00</vNF></ICMSTot></total>
+<cobr><dup><nDup>001</nDup><dVenc>2026-11-04</dVenc><vDup>300.00</vDup></dup><dup><nDup>002</nDup><dVenc>2026-12-04</dVenc><vDup>300.00</vDup></dup><dup><nDup>003</nDup><dVenc>2027-01-03</dVenc><vDup>300.00</vDup></dup></cobr>
+</infNFe></NFe></nfeProc>"""
+XML_SEM_PARCELA = """<NFe xmlns="http://www.portalfiscal.inf.br/nfe"><infNFe><ide><nNF>77</nNF><dhEmi>2026-10-10T08:00:00-03:00</dhEmi></ide>
+<emit><CNPJ>99888777000166</CNPJ><xNome>LATICINIOS SERRA LTDA</xNome></emit><total><ICMSTot><vNF>250.50</vNF></ICMSTot></total></infNFe></NFe>"""
+
+
+def criar_compras(caminho):
+    c = sqlite3.connect(caminho)
+    c.executescript("""
+    create table fornecedor (id_fornecedor text primary key, data_hora_criado text, data_hora_deletado text, data_hora_ultima_alteracao text,
+      razao_social text not null, nome_fantasia text not null, cpf_cnpj text not null, inscricao_estadual text, fone text);
+    create table nota_fiscal_compra (id_nota_fiscal_compra text primary key, data_hora_criado text, data_hora_deletado text, data_hora_ultima_alteracao text,
+      nome_fornecedor text not null, cpf_cnpj_fornecedor text not null, chave_acesso text not null, serie integer not null, numero integer not null,
+      data_hora_emissao text not null, xml_compactado blob, situacao integer not null, valor_total real not null, manifestacao_realizada integer not null);
+    create table entrada (id_entrada text primary key, data_hora_criado text, data_hora_deletado text, data_hora_ultima_alteracao text,
+      id_fornecedor text, id_nota_fiscal_compra text, tipo_entrada integer not null, data_hora text not null);
+    create table entrada_item (id_entrada_item text primary key, data_hora_criado text, data_hora_deletado text, data_hora_ultima_alteracao text,
+      quantidade real not null, preco_custo real not null, preco_custo_total real not null, numero_item_nota_fiscal text, id_produto text not null, id_entrada text not null);
+    """)
+    c.execute("insert into fornecedor values ('f1',null,null,null,'ATACADAO UBA LTDA','Atacadão Ubá','12.345.678/0001-90','123','3235310000')")
+    c.execute("insert into fornecedor values ('f2',null,null,null,'MOINHO ZONA DA MATA','Moinho','11.111.111/0001-11','','')")
+    c.execute("insert into fornecedor values ('f3',null,'2026-01-01',null,'APAGADO','Apagado','22.222.222/0001-22','','')")
+    c.execute("insert into nota_fiscal_compra values ('n1',null,null,null,'ATACADAO UBA LTDA','12345678000190','chave1',1,4512,'2026-10-05T10:00:00',?,1,900,1)", (gzip.compress(XML_3_PARCELAS.encode()),))
+    c.execute("insert into nota_fiscal_compra values ('n2',null,null,null,'LATICINIOS SERRA LTDA','99888777000166','chave2',1,77,'2026-10-10T08:00:00',?,1,250.5,1)", (zlib.compress(XML_SEM_PARCELA.encode()),))
+    c.execute("insert into entrada values ('e1',null,null,null,'f1','n1',1,'2026-10-06T09:00:00')")      # nota com 3 boletos
+    c.execute("insert into entrada values ('e2',null,null,null,null,'n2',1,'2026-10-11T09:00:00')")      # nota sem duplicata, fornecedor só na nota
+    c.execute("insert into entrada values ('e3',null,null,null,'f2',null,0,'2026-10-12T15:00:00')")      # entrada manual com fornecedor
+    c.execute("insert into entrada_item values ('i1',null,null,null,10,12.5,125,null,'p1','e3')")
+    c.execute("insert into entrada values ('e4',null,'2026-10-13',null,'f1',null,0,'2026-10-13T15:00:00')")  # apagada
+    c.execute("insert into entrada values ('e5',null,null,null,null,null,0,'2026-10-14T15:00:00')")      # interna, sem fornecedor
+    c.execute("insert into entrada_item values ('i2',null,null,null,1,50,50,null,'p1','e5')")
+    c.commit()
+    c.close()
+
+
 def rodar():
     erros = []
 
@@ -82,6 +123,29 @@ def rodar():
         t = R.totais(r)
         confere("vendas", t["vendas"], 3)
         confere("faturamento", t["faturamento"], 185)
+        if r["compras"] or r["fornecedores"]:
+            erros.append("banco sem tabelas de entrada deveria vir sem compras")
+        criar_compras(db)
+        forn, compras = R.fornecedores_e_compras(db)
+        docs = {f["cpf_cnpj"] for f in forn}
+        confere("fornecedores (2 cadastrados + 1 só na nota)", len(forn), 3)
+        if "22222222000122" in docs:
+            erros.append("fornecedor apagado foi enviado")
+        if "99888777000166" not in docs:
+            erros.append("fornecedor que só existe na nota não foi enviado")
+        por = {c["origem_id"]: c for c in compras}
+        confere("parcelas no total", len(compras), 5)
+        confere("parcela 2 da NF 4512", por["e1#2"]["valor"], 300)
+        if por["e1#3"]["vencimento"] != "2027-01-03" or por["e1#1"]["parcelas"] != 3:
+            erros.append("vencimentos das duplicatas errados: " + str(por["e1#3"]))
+        if por["e1#1"]["competencia"] != "2026-10-05":
+            erros.append("competência deveria ser a emissão da nota")
+        confere("nota sem duplicata vira uma conta", por["e2#1"]["valor"], 250.5)
+        if por["e2#1"]["vencimento"] != "2026-10-10":
+            erros.append("nota sem duplicata deveria vencer na emissão")
+        confere("entrada manual pelo total dos itens", por["e3#1"]["valor"], 125)
+        if any(k.startswith(("e4", "e5")) for k in por):
+            erros.append("entrada apagada ou interna virou conta a pagar")
     for e in erros:
         print("FALHOU:", e)
     print("OK" if not erros else f"{len(erros)} falha(s)")

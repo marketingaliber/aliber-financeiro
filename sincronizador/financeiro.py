@@ -21,7 +21,7 @@ import nuvem
 import resumo as R
 
 APP_NOME = "Aliber Financeiro"
-VERSAO = "1.1"
+VERSAO = "1.2"
 VERMELHO = "#D7262B"
 AZUL = "#1B4FA0"
 
@@ -118,6 +118,10 @@ def sincronizar(cfg, tudo=False):
     resp = nuvem.enviar(cfg, res)
     texto = (f"{ini:%d/%m/%Y} a {fim:%d/%m/%Y}: {t['vendas']} vendas, {brl(t['faturamento'])} "
              f"enviados para {resp.get('empresa', 'a nuvem')}")
+    extras = [f"{resp[k]} {n}" for k, n in (("fornecedores_novos", "fornecedor(es) novo(s)"), ("contas_novas", "conta(s) a pagar nova(s) das notas de entrada"),
+                                            ("contas_atualizadas", "conta(s) atualizada(s)"), ("contas_removidas", "conta(s) removida(s)")) if resp.get(k)]
+    if extras:
+        texto += "; " + ", ".join(extras)
     return texto, resp
 
 
