@@ -5,6 +5,7 @@
 -- e atualiza as funções).
 --
 -- Versão 1.2: importa fornecedores e contas a pagar das entradas de nota do PDV+.
+-- Versão 1.3: backup (exportar e restaurar uma loja) e travas de segurança.
 --
 -- Plano de contas no modelo gerencial (3 níveis):
 --   1 RECEITA/FATURAMENTO      (receita)
@@ -508,11 +509,14 @@ begin
         end if;
       end loop;
 
-      -- entrada excluída no PDV+: sai daqui também, se ainda não foi paga
-      delete from lancamentos l
-       where l.empresa_id = e and l.origem = 'pdv' and l.pago_em is null
-         and not exists (select 1 from jsonb_array_elements(coalesce(dados->'compras','[]')) x where x->>'origem_id' = l.origem_id);
-      get diagnostics nx = row_count;
+      -- entrada excluída no PDV+: sai daqui também, se ainda não foi paga.
+      -- Trava: lista de compras vazia (banco do PDV+ trocado, restaurado ou vazio) não apaga nada.
+      if jsonb_array_length(coalesce(dados->'compras','[]')) > 0 then
+        delete from lancamentos l
+         where l.empresa_id = e and l.origem = 'pdv' and l.pago_em is null
+           and not exists (select 1 from jsonb_array_elements(dados->'compras') x where x->>'origem_id' = l.origem_id);
+        get diagnostics nx = row_count;
+      end if;
     end if;
   end if;
 
@@ -524,6 +528,87 @@ end $$;
 
 revoke all on function sincronizar(text, jsonb) from public;
 grant execute on function sincronizar(text, jsonb) to anon, authenticated;
+
+-- ---------------------------------------------------------------------
+-- Backup (versão 1.3): exporta e restaura todos os dados de uma loja
+--   exportar_backup(empresa)        painel (quem tem acesso à loja)
+--   exportar_backup_chave(chave)    sincronizador, backup diário no computador da loja
+--   restaurar_backup(empresa, dados) painel; troca TODOS os dados da loja pelos do arquivo
+-- ---------------------------------------------------------------------
+create or replace function backup_da_loja(e uuid) returns jsonb
+language sql stable security definer set search_path = public as $$
+  select jsonb_build_object(
+    'formato', 'aliber-financeiro-backup', 'versao', 1, 'gerado_em', now(),
+    'empresa', (select to_jsonb(x) - 'chave_sync' from empresas x where x.id = e),
+    'plano_contas',       coalesce((select jsonb_agg(to_jsonb(x)) from plano_contas x where x.empresa_id = e), '[]'),
+    'contas_financeiras', coalesce((select jsonb_agg(to_jsonb(x)) from contas_financeiras x where x.empresa_id = e), '[]'),
+    'fornecedores',       coalesce((select jsonb_agg(to_jsonb(x)) from fornecedores x where x.empresa_id = e), '[]'),
+    'formas_pagamento',   coalesce((select jsonb_agg(to_jsonb(x)) from formas_pagamento x where x.empresa_id = e), '[]'),
+    'config_empresa',     coalesce((select jsonb_agg(to_jsonb(x)) from config_empresa x where x.empresa_id = e), '[]'),
+    'lancamentos',        coalesce((select jsonb_agg(to_jsonb(x)) from lancamentos x where x.empresa_id = e), '[]'),
+    'movimentos',         coalesce((select jsonb_agg(to_jsonb(x)) from movimentos x where x.empresa_id = e), '[]'),
+    'pdv_ignorados',      coalesce((select jsonb_agg(to_jsonb(x)) from pdv_ignorados x where x.empresa_id = e), '[]'),
+    'vendas_dia',         coalesce((select jsonb_agg(to_jsonb(x)) from vendas_dia x where x.empresa_id = e), '[]'),
+    'pagamentos_dia',     coalesce((select jsonb_agg(to_jsonb(x)) from pagamentos_dia x where x.empresa_id = e), '[]'))
+$$;
+revoke all on function backup_da_loja(uuid) from public, anon, authenticated;
+
+create or replace function exportar_backup(empresa uuid) returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+begin
+  if not pode_ver(empresa) then raise exception 'Sem acesso a esta loja'; end if;
+  return backup_da_loja(empresa);
+end $$;
+
+create or replace function exportar_backup_chave(chave text) returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare e uuid;
+begin
+  select id into e from empresas where chave_sync = chave and ativa;
+  if e is null then raise exception 'Chave de sincronização inválida ou empresa desativada'; end if;
+  return backup_da_loja(e);
+end $$;
+
+create or replace function restaurar_backup(empresa uuid, dados jsonb) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare n jsonb := '{}';
+begin
+  if not pode_ver(empresa) then raise exception 'Sem acesso a esta loja'; end if;
+  if coalesce(dados->>'formato', '') <> 'aliber-financeiro-backup' then raise exception 'Este arquivo não é um backup do Aliber Financeiro'; end if;
+  if dados->'empresa'->>'id' is distinct from empresa::text then
+    raise exception 'Este backup é da loja "%" e não desta loja', dados->'empresa'->>'nome';
+  end if;
+  -- tudo ou nada: se qualquer parte falhar, nada é alterado
+  delete from pdv_ignorados where empresa_id = empresa;
+  delete from movimentos where empresa_id = empresa;
+  delete from lancamentos where empresa_id = empresa;
+  delete from config_empresa where empresa_id = empresa;
+  delete from formas_pagamento where empresa_id = empresa;
+  delete from fornecedores where empresa_id = empresa;
+  delete from contas_financeiras where empresa_id = empresa;
+  delete from plano_contas where empresa_id = empresa;
+  delete from vendas_dia where empresa_id = empresa;
+  delete from pagamentos_dia where empresa_id = empresa;
+  insert into plano_contas select (jsonb_populate_record(null::plano_contas, x || jsonb_build_object('empresa_id', empresa))).* from jsonb_array_elements(coalesce(dados->'plano_contas','[]')) x;
+  insert into contas_financeiras select (jsonb_populate_record(null::contas_financeiras, x || jsonb_build_object('empresa_id', empresa))).* from jsonb_array_elements(coalesce(dados->'contas_financeiras','[]')) x;
+  insert into fornecedores select (jsonb_populate_record(null::fornecedores, x || jsonb_build_object('empresa_id', empresa))).* from jsonb_array_elements(coalesce(dados->'fornecedores','[]')) x;
+  insert into formas_pagamento select (jsonb_populate_record(null::formas_pagamento, x || jsonb_build_object('empresa_id', empresa))).* from jsonb_array_elements(coalesce(dados->'formas_pagamento','[]')) x;
+  insert into config_empresa select (jsonb_populate_record(null::config_empresa, x || jsonb_build_object('empresa_id', empresa))).* from jsonb_array_elements(coalesce(dados->'config_empresa','[]')) x;
+  insert into lancamentos select (jsonb_populate_record(null::lancamentos, x || jsonb_build_object('empresa_id', empresa))).* from jsonb_array_elements(coalesce(dados->'lancamentos','[]')) x;
+  insert into movimentos select (jsonb_populate_record(null::movimentos, x || jsonb_build_object('empresa_id', empresa))).* from jsonb_array_elements(coalesce(dados->'movimentos','[]')) x;
+  insert into pdv_ignorados select (jsonb_populate_record(null::pdv_ignorados, x || jsonb_build_object('empresa_id', empresa))).* from jsonb_array_elements(coalesce(dados->'pdv_ignorados','[]')) x;
+  insert into vendas_dia select (jsonb_populate_record(null::vendas_dia, x || jsonb_build_object('empresa_id', empresa))).* from jsonb_array_elements(coalesce(dados->'vendas_dia','[]')) x;
+  insert into pagamentos_dia select (jsonb_populate_record(null::pagamentos_dia, x || jsonb_build_object('empresa_id', empresa))).* from jsonb_array_elements(coalesce(dados->'pagamentos_dia','[]')) x;
+  select jsonb_build_object('contas_do_plano', (select count(*) from plano_contas where empresa_id = empresa),
+                            'lancamentos', (select count(*) from lancamentos where empresa_id = empresa),
+                            'fornecedores', (select count(*) from fornecedores where empresa_id = empresa),
+                            'bancos', (select count(*) from contas_financeiras where empresa_id = empresa)) into n;
+  return n;
+end $$;
+
+revoke all on function exportar_backup(uuid), restaurar_backup(uuid, jsonb), exportar_backup_chave(text) from public;
+grant execute on function exportar_backup(uuid), restaurar_backup(uuid, jsonb) to authenticated;
+grant execute on function exportar_backup_chave(text) to anon, authenticated;
 
 -- ---------------------------------------------------------------------
 -- Funções da equipe Aliber (tela "Administração" do painel)
@@ -556,6 +641,8 @@ begin
   return 'ok';
 end $$;
 
+revoke all on function vincular_usuario(uuid, text), usuarios_da_empresa(uuid), desvincular_usuario(uuid, text),
+                       eh_admin(), pode_ver(uuid), preparar_empresa() from public, anon;
 grant execute on function vincular_usuario(uuid, text), usuarios_da_empresa(uuid),
                           desvincular_usuario(uuid, text), eh_admin(), pode_ver(uuid) to authenticated;
 

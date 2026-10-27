@@ -21,7 +21,7 @@ import nuvem
 import resumo as R
 
 APP_NOME = "Aliber Financeiro"
-VERSAO = "1.2"
+VERSAO = "1.3"
 VERMELHO = "#D7262B"
 AZUL = "#1B4FA0"
 
@@ -39,6 +39,8 @@ except OSError:
     DADOS = PASTA
 ARQ_CONFIG = os.path.join(DADOS, "financeiro_config.json")
 ARQ_LOG = os.path.join(DADOS, "financeiro_log.txt")
+PASTA_BACKUP = os.path.join(DADOS, "backups")
+BACKUPS_GUARDADOS = 30
 for _n in ("financeiro_config.json", "financeiro_log.txt"):      # versão 1.0 (sem instalador) guardava ao lado do .exe
     _velho, _novo = os.path.join(PASTA, _n), os.path.join(DADOS, _n)
     if _velho != _novo and os.path.exists(_velho) and not os.path.exists(_novo):
@@ -63,7 +65,9 @@ CONFIG_PADRAO = {
     "supabase_anon": "",
     "ultima_sync": "",
     "historico_enviado": False,
-    "atualizar_sozinho": False,     # o técnico liga na área do técnico (padrão do Aliber Print: desligado)
+    "atualizar_sozinho": False,
+    "ultimo_backup": "",            # data do último backup diário dos dados da nuvem
+    "pasta_backup_extra": "",       # cópia extra (pendrive, pasta do Google Drive/OneDrive...)     # o técnico liga na área do técnico (padrão do Aliber Print: desligado)
 }
 
 
@@ -123,6 +127,38 @@ def sincronizar(cfg, tudo=False):
     if extras:
         texto += "; " + ", ".join(extras)
     return texto, resp
+
+
+def fazer_backup(cfg):
+    """Baixa todos os dados da loja que estão na nuvem e guarda compactado no computador.
+    Fica em %APPDATA%\\Aliber Financeiro\\backups (últimos 30 dias) e, se configurado, numa pasta extra."""
+    import gzip
+    import shutil
+    dados = nuvem.baixar_backup(cfg)
+    if (dados or {}).get("formato") != "aliber-financeiro-backup":
+        raise RuntimeError("a nuvem não devolveu um backup válido (rode o banco.sql da versão 1.3 no Supabase)")
+    os.makedirs(PASTA_BACKUP, exist_ok=True)
+    nome = f"AliberFinanceiro-backup-{datetime.now():%Y-%m-%d}.json.gz"
+    arq = os.path.join(PASTA_BACKUP, nome)
+    with gzip.open(arq + ".parcial", "wt", encoding="utf-8") as f:
+        json.dump(dados, f, ensure_ascii=False)
+    os.replace(arq + ".parcial", arq)
+    antigos = sorted(n for n in os.listdir(PASTA_BACKUP) if n.startswith("AliberFinanceiro-backup-") and n.endswith(".json.gz"))
+    for n in antigos[:-BACKUPS_GUARDADOS]:
+        try:
+            os.remove(os.path.join(PASTA_BACKUP, n))
+        except OSError:
+            pass
+    extra = (cfg.get("pasta_backup_extra") or "").strip()
+    aviso = ""
+    if extra:
+        try:
+            os.makedirs(extra, exist_ok=True)
+            shutil.copy2(arq, os.path.join(extra, nome))
+        except OSError as e:
+            aviso = f" (não consegui copiar para {extra}: {e.strerror or e})"
+    n = len(dados.get("lancamentos") or [])
+    return f"Backup do dia salvo: {n} lançamento(s), {len(dados.get('fornecedores') or [])} fornecedor(es){aviso}"
 
 
 # ---------------------------------------------------------------- iniciar com o Windows
@@ -190,6 +226,7 @@ class App:
         self.bt_sync.pack(side="left")
         ttk.Button(bot, text="Abrir painel", command=lambda: webbrowser.open(nuvem.PAINEL_URL)).pack(side="left", padx=8)
         ttk.Button(bot, text="Configurações", command=self.configuracoes).pack(side="left")
+        ttk.Button(bot, text="Backups", command=self.abrir_backups).pack(side="left", padx=8)
 
         self.var_ini = tk.BooleanVar(value=inicia_com_windows())
         ttk.Checkbutton(root, text="Abrir sozinho quando o Windows ligar (recomendado)", variable=self.var_ini,
@@ -227,6 +264,13 @@ class App:
         self.lbl["ultima"].config(text=datetime.fromisoformat(u).strftime("%d/%m/%Y %H:%M") if u else "nunca", fg="#222")
         self.lbl["proxima"].config(text=self.proxima.strftime("%H:%M") if self.proxima else "-", fg="#222")
 
+    def abrir_backups(self):
+        os.makedirs(PASTA_BACKUP, exist_ok=True)
+        try:
+            os.startfile(PASTA_BACKUP)
+        except Exception:
+            messagebox.showinfo(APP_NOME, "Os backups ficam em:\n" + PASTA_BACKUP)
+
     def trocar_inicio(self):
         try:
             definir_inicio_windows(self.var_ini.get())
@@ -257,6 +301,13 @@ class App:
                 self.fila.put(("ok", texto, resp))
             except Exception as e:
                 self.fila.put(("erro", str(e), None))
+                return
+            hoje_txt = date.today().isoformat()
+            if cfg.get("ultimo_backup") != hoje_txt:
+                try:
+                    self.fila.put(("backup", fazer_backup(cfg), hoje_txt))
+                except Exception as e:
+                    self.fila.put(("backup_erro", str(e), None))
         threading.Thread(target=trabalho, daemon=True).start()
 
     def processar_fila(self):
@@ -281,6 +332,14 @@ class App:
                         self.root.after(800, self.root.destroy)
                     except Exception as e:
                         self.log(f"ERRO ao abrir o instalador: {e}")
+                elif tipo == "backup":
+                    self.cfg["ultimo_backup"] = resp
+                    salvar_config(self.cfg)
+                    self.log("OK  " + texto)
+                    continue
+                elif tipo == "backup_erro":
+                    self.log("ERRO no backup do dia: " + texto)
+                    continue
                 elif tipo == "erro_versao":
                     self.log("ERRO ao baixar a versão: " + texto)
                 if tipo in ("ok", "erro"):
@@ -450,6 +509,14 @@ class App:
         ttk.Button(f, text="Procurar...", command=procurar).grid(row=1, column=1, padx=6)
         linha(1, "Chave da empresa (vem do painel, tela Administração)", "chave_sync")
         linha(2, "Sincronizar a cada (minutos)", "intervalo_min", 8, "mínimo 5")
+        linha(5, "Cópia extra do backup diário (pendrive, pasta do Google Drive...) - opcional", "pasta_backup_extra")
+
+        def procurar_pasta():
+            p = filedialog.askdirectory(parent=w)
+            if p:
+                campos["pasta_backup_extra"].delete(0, "end")
+                campos["pasta_backup_extra"].insert(0, os.path.normpath(p))
+        ttk.Button(f, text="Procurar...", command=procurar_pasta).grid(row=11, column=1, padx=6)
         if not (nuvem.SUPABASE_URL and nuvem.SUPABASE_ANON):
             linha(3, "Endereço da nuvem (Supabase URL)", "supabase_url")
             linha(4, "Chave pública da nuvem (anon)", "supabase_anon")

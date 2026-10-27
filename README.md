@@ -44,6 +44,12 @@ DRE: Receita − Custos variáveis = **Margem de contribuição** − Despesas f
 - Só entram entradas a partir da data "Importar notas com entrada a partir de" (padrão: início do mês em que a loja começou a usar).
 - Ao atualizar o banco na nuvem, rode o `supabase/banco.sql` de novo no SQL Editor (pode rodar quantas vezes quiser).
 
+## Backup (versão 1.3)
+- O programa da loja faz um backup por dia de tudo o que a loja tem na nuvem, em `%APPDATA%\Aliber Financeiro\backups`
+  (últimos 30 dias), com cópia extra opcional em outra pasta.
+- No painel, a página **Backup** baixa e restaura (restaurar troca todos os dados da loja; o painel baixa uma cópia antes).
+- Segurança: veja `SEGURANCA.md`.
+
 ## Caixa e bancos
 Cada loja tem suas contas de caixa, banco e investimento, com saldo inicial. O saldo soma as vendas do PDV+ (já sem a taxa,
 na data em que caem), as contas pagas e recebidas, as **transferências entre contas internas** e os **acertos de caixa**.

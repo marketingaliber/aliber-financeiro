@@ -219,7 +219,7 @@ input[type=file] { font-size: 14px }
    ===================================================================== */
 const CONFIG = {"supabaseUrl": "https://gdoklolbjrnnqcklgjtt.supabase.co", "supabaseAnon": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdkb2tsb2xianJubnFja2xnanR0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMwNTY5ODQsImV4cCI6MjEwODYzMjk4NH0.YoBdRMey8JKVYR7HWeTZsRVWxOFq1L94E7nq5qtQYd0"};
 const DEMO_RESUMO = /*DEMO*/null/*FIM*/;
-const VERSAO_PAINEL = "2.1";
+const VERSAO_PAINEL = "2.2";
 
 /* ---------------------------------------------------------------- utilidades */
 const $ = s => document.querySelector(s);
@@ -255,6 +255,7 @@ const ICONES = {
   plano: '<path d="M4 5h4M4 12h4M4 19h4M11 5h9M11 12h9M11 19h9"/>',
   config: '<circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.2l2-1.6-2-3.4-2.4 1a7 7 0 0 0-2-1.2L14 3h-4l-.5 2.6a7 7 0 0 0-2 1.2l-2.4-1-2 3.4 2 1.6A7 7 0 0 0 5 12c0 .4 0 .8.1 1.2l-2 1.6 2 3.4 2.4-1a7 7 0 0 0 2 1.2L10 21h4l.5-2.6a7 7 0 0 0 2-1.2l2.4 1 2-3.4-2-1.6c.1-.4.1-.8.1-1.2z"/>',
   bancos: '<path d="M3 10h18M5 10v8M9.5 10v8M14.5 10v8M19 10v8M3 21h18M12 3l9 5H3z"/>',
+  backup: '<path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 17v3h16v-3"/>',
   admin: '<circle cx="9" cy="8" r="4"/><path d="M2 21c0-4 3-6 7-6s7 2 7 6M17 11l2 2 4-4"/>',
 };
 const icone = n => `<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICONES[n]}</svg>`;
@@ -543,7 +544,15 @@ function bancoDemo() {
     async atualizar(t, f, dados) { const out = []; T[t].forEach(l => { if (casa(l, f)) { Object.assign(l, dados); out.push({ ...l }); } }); return out; },
     async excluir(t, f) { if (t === "plano_contas" && T.lancamentos.some(l => l.conta_id === f.id)) throw new Error(traduzir("violates foreign key"));
       T[t] = T[t].filter(l => !casa(l, f)); return []; },
-    async rpc(n, a) { if (n === "eh_admin") return true; if (n === "usuarios_da_empresa") return [{ email: "dono@" + (a.empresa === E ? "village" : "cliente") + ".com.br", papel: "dono" }];
+    async rpc(n, a) { if (n === "eh_admin") return true;
+      const TAB = ["plano_contas", "contas_financeiras", "fornecedores", "formas_pagamento", "config_empresa", "lancamentos", "movimentos", "pdv_ignorados", "vendas_dia", "pagamentos_dia"];
+      if (n === "exportar_backup") { const emp = T.empresas.find(e => e.id === a.empresa); const { chave_sync, ...semChave } = emp;
+        const out = { formato: "aliber-financeiro-backup", versao: 1, gerado_em: new Date().toISOString(), empresa: semChave };
+        TAB.forEach(t => out[t] = (T[t] || []).filter(l => l.empresa_id === a.empresa).map(l => ({ ...l }))); return out; }
+      if (n === "restaurar_backup") { const d = a.dados; if (d.formato !== "aliber-financeiro-backup") throw new Error("Este arquivo não é um backup do Aliber Financeiro");
+        if (d.empresa?.id !== a.empresa) throw new Error(`Este backup é da loja "${d.empresa?.nome}" e não desta loja`);
+        TAB.forEach(t => { T[t] = (T[t] || []).filter(l => l.empresa_id !== a.empresa).concat((d[t] || []).map(l => ({ ...l, empresa_id: a.empresa }))); });
+        return { lancamentos: (d.lancamentos || []).length }; } if (n === "usuarios_da_empresa") return [{ email: "dono@" + (a.empresa === E ? "village" : "cliente") + ".com.br", papel: "dono" }];
       if (n === "vincular_usuario" || n === "desvincular_usuario") return "ok"; return null; },
   };
 }
@@ -670,7 +679,7 @@ async function carregarEmpresa() {
     bancos: bancos.sort((a, b) => (a.tipo === "caixa" ? 0 : 1) - (b.tipo === "caixa" ? 0 : 1) || a.nome.localeCompare(b.nome)), movimentos, config: config[0] || null };
   if (!S.d.bancos.some(b => b.id === S.banco.sel)) S.banco.sel = S.d.bancos[0]?.id || null;
 }
-const VIEWS = ["resumo", "dre", "contas", "bancos", "fornecedores", "plano", "config", "admin"];
+const VIEWS = ["resumo", "dre", "contas", "bancos", "fornecedores", "plano", "config", "backup", "admin"];
 function lerHash() { const h = location.hash.replace("#", ""); return VIEWS.includes(h) && (h !== "admin" || S.admin) ? h : "resumo"; }
 window.addEventListener("hashchange", () => { if (!S.db || !S.empresaId && !S.admin) return; const v = lerHash(); if (v !== S.view) { S.view = v; desenhar(); } });
 
@@ -714,7 +723,7 @@ function telaSemEmpresa() {
 
 /* ---------------------------------------------------------------- moldura */
 function desenhar() {
-  const itens = [["resumo", "Resumo"], ["dre", "DRE"], ["contas", "Contas a pagar"], ["bancos", "Caixa e bancos"], ["fornecedores", "Fornecedores"], ["plano", "Plano de contas"], ["config", "Configurações"]];
+  const itens = [["resumo", "Resumo"], ["dre", "DRE"], ["contas", "Contas a pagar"], ["bancos", "Caixa e bancos"], ["fornecedores", "Fornecedores"], ["plano", "Plano de contas"], ["config", "Configurações"], ["backup", "Backup"]];
   if (S.admin) itens.push(["admin", "Administração"]);
   $("#app").innerHTML = `<div class="shell">
     <nav class="nav" aria-label="Menu">
@@ -734,7 +743,7 @@ function desenharConteudo() {
   const c = $("#conteudo"); if (!c) return;
   if (!S.empresaId && S.view !== "admin") { c.innerHTML = `<div class="painel vazio">Nenhuma loja cadastrada ainda. Cadastre a primeira em <a href="#admin">Administração</a>.</div>`; return; }
   const demo = S.db.modo === "demo" ? `<div class="demo"><b>Demonstração.</b> ${DEMO_RESUMO ? "As vendas são as reais do PDV+ da " + esc(empresa()?.nome) + "; fornecedores, contas, saldos e taxas são exemplos." : "Todos os números são fictícios."} O que você lançar aqui some ao recarregar a página.</div>` : "";
-  c.innerHTML = demo + ({ resumo: vResumo, dre: vDRE, contas: vContas, bancos: vBancos, fornecedores: vFornecedores, plano: vPlano, config: vConfig, admin: vAdmin }[S.view])();
+  c.innerHTML = demo + ({ resumo: vResumo, dre: vDRE, contas: vContas, bancos: vBancos, fornecedores: vFornecedores, plano: vPlano, config: vConfig, backup: vBackup, admin: vAdmin }[S.view])();
   if (S.view === "contas") desenharListaContas();
 }
 function cabecalho(titulo, sub, direita = "") {
@@ -1192,6 +1201,66 @@ function atualizarAcerto() { const b = bancoPorId($("#ac-conta")?.value); if (!b
   $("#ac-sistema").value = brl(s); const real = lerNum($("#ac-real").value);
   $("#ac-dif").innerHTML = isFinite(real) ? (Math.abs(real - s) < 0.005 ? "Confere." : `Diferença: <b class="${real - s < 0 ? "neg" : "pos"}">${brl(real - s)}</b> (${real - s < 0 ? "falta" : "sobra"})`) : ""; }
 
+/* ---------------------------------------------------------------- BACKUP */
+const NOMES_BACKUP = { plano_contas: "contas do plano", contas_financeiras: "caixa e bancos", fornecedores: "fornecedores", lancamentos: "lançamentos",
+  movimentos: "transferências e acertos", formas_pagamento: "formas de pagamento", vendas_dia: "dias de venda" };
+function vBackup() {
+  const e = empresa(), demo = S.db.modo === "demo";
+  return cabecalho("Backup", "Cópia de todos os dados desta loja: plano de contas, contas, fornecedores, caixa e bancos, configurações e vendas.") + `
+  <section class="painel"><h2>Baixar backup agora</h2>
+    <p style="margin:0 0 10px">Gera um arquivo com tudo o que a <b>${esc(e?.nome)}</b> tem no Aliber Financeiro. Guarde em outro lugar (pendrive, Google Drive, e-mail).</p>
+    <div class="barra"><button class="bt azul" data-acao="baixar-backup">Baixar backup desta loja</button>
+    ${S.admin ? `<button class="bt" data-acao="baixar-backup-todas">Baixar backup de todas as lojas (${S.empresas.length})</button>` : ""}</div>
+    ${demo ? '<p class="nota" style="margin:10px 0 0">Na demonstração o arquivo não é baixado. No painel de verdade, ele vai para a pasta Downloads.</p>' : ""}
+  </section>
+  <section class="painel"><h2>Backup automático no computador da loja</h2>
+    <p style="margin:0">O programa <b>Aliber Financeiro</b> (versão 1.3 ou mais nova) faz sozinho um backup por dia, depois da primeira sincronização.
+    Ele guarda os <b>últimos 30 dias</b> na pasta <span class="cod">%APPDATA%\\Aliber Financeiro\\backups</span> (botão <b>Backups</b> na janela do programa).
+    Em Configurações dá para escolher uma pasta extra, como um pendrive ou a pasta do Google Drive, para ter uma cópia fora do computador.</p>
+  </section>
+  <section class="painel"><h2>Restaurar um backup</h2>
+    <p style="margin:0 0 10px"><b class="neg">Atenção:</b> restaurar troca <b>todos</b> os dados desta loja pelos do arquivo. O que foi lançado depois da data do backup se perde.
+    Antes de restaurar, o painel baixa sozinho uma cópia de como está agora.</p>
+    <input type="file" id="bk-arq" accept=".json,.gz,application/json,application/gzip" data-acao-change="ler-backup">
+    <div id="bk-prev" class="nota" style="margin-top:10px">Aceita o arquivo baixado aqui (.json) ou o do computador da loja (.json.gz).</div>
+  </section>`;
+}
+async function lerArquivoBackup(arq) {
+  const prev = $("#bk-prev"); window.__backup = null; prev.textContent = "Lendo…";
+  try {
+    let texto;
+    if (/\.gz$/i.test(arq.name)) { if (!window.DecompressionStream) throw new Error("Este navegador não abre .gz. Use o Chrome ou o Edge atualizados.");
+      texto = await new Response(arq.stream().pipeThrough(new DecompressionStream("gzip"))).text(); }
+    else texto = await arq.text();
+    const d = JSON.parse(texto);
+    if (d.formato !== "aliber-financeiro-backup") throw new Error("Este arquivo não é um backup do Aliber Financeiro.");
+    if (d.empresa?.id !== S.empresaId) throw new Error(`Este backup é da loja "${d.empresa?.nome || "?"}". Abra essa loja antes de restaurar.`);
+    window.__backup = d;
+    const quando = new Date(d.gerado_em);
+    prev.innerHTML = `<div class="tabela"><table><tbody><tr><td>Loja</td><td><b>${esc(d.empresa.nome)}</b></td></tr>
+      <tr><td>Feito em</td><td><b>${quando.toLocaleDateString("pt-BR")} às ${quando.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</b></td></tr>
+      ${Object.entries(NOMES_BACKUP).map(([k, n]) => `<tr><td>${n}</td><td class="num">${(d[k] || []).length}</td></tr>`).join("")}</tbody></table></div>
+      <div class="barra" style="margin-top:10px"><button class="bt pri" data-acao="restaurar-backup">Restaurar este backup…</button></div>`;
+  } catch (e) { prev.innerHTML = `<span class="neg">${esc(e.message || "Não consegui ler o arquivo.")}</span>`; }
+}
+async function baixarBackup(empresaId, prefixo = "") {
+  const d = await S.db.rpc("exportar_backup", { empresa: empresaId });
+  const nome = (d.empresa?.nome || "loja").replace(/[^\w\-À-ú ]+/g, "").trim();
+  if (S.db.modo === "nuvem") baixar(`${prefixo}AliberFinanceiro-${nome}-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-")}.json`, JSON.stringify(d), "application/json");
+  return d;
+}
+function formRestaurar() {
+  const d = window.__backup; if (!d) return;
+  abrirModal("Restaurar backup", `<p style="margin:0">Todos os dados atuais da <b>${esc(empresa()?.nome)}</b> serão trocados pelos do backup de
+    <b>${new Date(d.gerado_em).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}</b>. Uma cópia de como está agora será baixada antes.</p>
+    <label class="campo">Para confirmar, digite o nome da loja: <b>${esc(empresa()?.nome)}</b><input type="text" id="bk-conf" required autocomplete="off"></label>`, async () => {
+    if ($("#bk-conf").value.trim().toLowerCase() !== (empresa()?.nome || "").trim().toLowerCase()) throw new Error("O nome digitado não confere.");
+    await baixarBackup(S.empresaId, "ANTES-DE-RESTAURAR-");
+    await S.db.rpc("restaurar_backup", { empresa: S.empresaId, dados: d });
+    window.__backup = null; await carregarEmpresa(); toast("Backup restaurado.");
+  }, "Restaurar");
+}
+
 /* ---------------------------------------------------------------- CONFIGURAÇÕES */
 function vConfig() {
   const e = empresa();
@@ -1317,6 +1386,12 @@ document.addEventListener("click", async ev => {
     if (a === "excluir-plano") { const c = contaPorId(id); return confirmar("Excluir conta do plano", `Excluir <b>${esc(c.codigo)} ${esc(c.nome)}</b>?`, "Excluir", async () => {
       await S.db.excluir("plano_contas", { id }); S.d.plano = S.d.plano.filter(x => x.id !== id); toast("Conta excluída."); }); }
     if (a === "importar-plano") return formImportar();
+    if (a === "baixar-backup") { el.disabled = true; try { await baixarBackup(S.empresaId); toast(S.db.modo === "nuvem" ? "Backup baixado (pasta Downloads)." : "Backup gerado (na demonstração não baixa o arquivo)."); } finally { el.disabled = false; } return; }
+    if (a === "baixar-backup-todas") { el.disabled = true; try { const todas = [];
+        for (const e of S.empresas) todas.push(await S.db.rpc("exportar_backup", { empresa: e.id }));
+        if (S.db.modo === "nuvem") baixar(`AliberFinanceiro-TODAS-AS-LOJAS-${hoje()}.json`, JSON.stringify({ formato: "aliber-financeiro-backup-varias", gerado_em: new Date().toISOString(), lojas: todas }), "application/json");
+        toast(`Backup de ${todas.length} loja(s) gerado.`); } finally { el.disabled = false; } return; }
+    if (a === "restaurar-backup") return formRestaurar();
     if (a === "restaurar-plano") { const faltam = PLANO_PADRAO.filter(p => !S.d.plano.some(c => c.codigo === p[0] || (p[4] && c.automatica === p[4])));
       if (!faltam.length) return toast("O plano já tem todas as contas padrão.");
       const novas = await S.db.inserir("plano_contas", faltam.map(([codigo, nome, grupo, sintetica, automatica]) => ({ empresa_id: S.empresaId, codigo, nome, grupo, sintetica, automatica: automatica || null, ativa: true })));
@@ -1344,6 +1419,7 @@ document.addEventListener("change", async ev => {
   if (a === "empresa") return trocarEmpresa(el.value);
   if (a === "forn-conta") { const f = fornPorId(el.value); if (f?.conta_padrao_id && $(`#f-conta option[value="${f.conta_padrao_id}"]`)) $("#f-conta").value = f.conta_padrao_id; if (f && !$("#f-desc").value) $("#f-desc").value = f.nome; }
   if (a === "ler-planilha") { if (el.files[0]) lerArquivoPlano(el.files[0]); }
+  if (a === "ler-backup") { if (el.files[0]) lerArquivoBackup(el.files[0]); }
   if (a === "acerto-atualiza") atualizarAcerto();
 });
 document.addEventListener("input", ev => { const a = ev.target.dataset.acaoInput;

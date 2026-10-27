@@ -16,15 +16,16 @@ def configurado(cfg):
     return bool((cfg.get("supabase_url") or SUPABASE_URL) and (cfg.get("supabase_anon") or SUPABASE_ANON))
 
 
-def enviar(cfg, resumo):
-    url = (cfg.get("supabase_url") or SUPABASE_URL).rstrip("/") + "/rest/v1/rpc/sincronizar"
+def chamar(cfg, funcao, args, tempo=60):
+    """Chama uma função do banco na nuvem (rpc) e devolve a resposta já lida."""
+    url = (cfg.get("supabase_url") or SUPABASE_URL).rstrip("/") + "/rest/v1/rpc/" + funcao
     anon = cfg.get("supabase_anon") or SUPABASE_ANON
-    corpo = json.dumps({"chave": cfg["chave_sync"].strip(), "dados": resumo}).encode("utf-8")
+    corpo = json.dumps(args).encode("utf-8")
     req = urllib.request.Request(url, data=corpo, method="POST", headers={
         "apikey": anon, "Authorization": "Bearer " + anon,
         "Content-Type": "application/json", "User-Agent": "AliberFinanceiro"})
     try:
-        with urllib.request.urlopen(req, timeout=60) as r:
+        with urllib.request.urlopen(req, timeout=tempo) as r:
             return json.loads(r.read().decode("utf-8") or "{}")
     except urllib.error.HTTPError as e:
         try:
@@ -34,3 +35,11 @@ def enviar(cfg, resumo):
         raise RuntimeError(msg or f"erro {e.code} no servidor") from None
     except urllib.error.URLError as e:
         raise RuntimeError(f"sem conexão com a internet ({e.reason})") from None
+
+
+def enviar(cfg, resumo):
+    return chamar(cfg, "sincronizar", {"chave": cfg["chave_sync"].strip(), "dados": resumo})
+
+
+def baixar_backup(cfg):
+    return chamar(cfg, "exportar_backup_chave", {"chave": cfg["chave_sync"].strip()}, tempo=120)
