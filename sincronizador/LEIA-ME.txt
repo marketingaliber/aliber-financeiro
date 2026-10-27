@@ -1,4 +1,4 @@
-ALIBER FINANCEIRO 1.0 - sincronizador
+ALIBER FINANCEIRO - sincronizador
 Envia as vendas do PDV+ para o painel online, onde o dono vê a DRE e lança fornecedores e contas a pagar.
 
 O QUE ELE FAZ
@@ -10,13 +10,24 @@ O QUE ELE FAZ
     (assim um cancelamento feito depois também é corrigido).
 
 INSTALAR NO COMPUTADOR DO CAIXA
-  1. Crie a pasta C:\Aliber Financeiro e coloque o AliberFinanceiro.exe dentro.
-  2. Abra o programa > Configurações > cole a CHAVE DA EMPRESA (pegue no painel, Administração) > SALVAR.
-  3. Marque "Abrir sozinho quando o Windows ligar".
+  1. Baixe o AliberFinanceiro-Instalador.exe da versão mais recente:
+     https://github.com/marketingaliber/aliber-financeiro/releases/latest
+  2. Abra o instalador. Se o Windows mostrar "O Windows protegeu o computador", clique em
+     Mais informações > Executar assim mesmo. Deixe marcado "Abrir sozinho quando o Windows ligar".
+  3. No programa: Configurações > cole a CHAVE DA EMPRESA (painel, Administração) > SALVAR.
   4. Confira em "Acontecimentos" a linha OK com o total enviado.
+
+TROCAR DE VERSÃO (técnico)
+  Configurações > Versões (técnico) > senha do técnico (a mesma do Aliber Print).
+  Escolha a versão e clique em INSTALAR ESTA VERSÃO: o programa fecha, instala e abre de novo.
+  Dá para voltar para uma versão antiga. A opção "Instalar sozinho as versões novas" vem desligada.
+
+ONDE FICAM OS DADOS
+  Configuração e histórico: %APPDATA%\Aliber Financeiro (financeiro_config.json e financeiro_log.txt).
+  Programa: %LOCALAPPDATA%\Programs\Aliber Financeiro. Desinstalar não apaga a configuração.
 
 SE ALGO DER ERRADO
   - "banco do PDV+ não encontrado": em Configurações, clique em Procurar e escolha o navi_db.db.
   - "Chave de sincronização inválida": copie a chave de novo no painel.
   - "sem conexão com a internet": ele tenta de novo sozinho em 15 minutos.
-  - Histórico de tudo: financeiro_log.txt, na mesma pasta do programa.
+  - Histórico de tudo: %APPDATA%\Aliber Financeiro\financeiro_log.txt.

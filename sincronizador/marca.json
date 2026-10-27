@@ -1,0 +1,9 @@
+{
+  "empresa": "Aliber Informática / Sistemas",
+  "senhaTecnico": {
+    "sal": "a48a4575c10f36585086cb5f92d09227",
+    "iteracoes": 120000,
+    "hash": "0f8f8eac67ecb2d3446c067b45e932989d3bdd9c66f03e7d998b603e67c99783",
+    "observacao": "Senha da área do técnico (PBKDF2-SHA256). Para trocar, gere um novo sal/hash."
+  }
+}

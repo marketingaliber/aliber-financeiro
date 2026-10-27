@@ -42,8 +42,9 @@ PARTE 3 - VIRAR ADMINISTRADOR
 
 PARTE 4 - CADA CLIENTE NOVO
   1. Painel > Administração > "+ Nova loja". Copie a chave da loja.
-  2. No computador do caixa: baixe o AliberFinanceiro.exe, coloque numa pasta (ex.: C:\Aliber Financeiro),
-     abra, vá em Configurações e cole a chave. Marque "Abrir sozinho quando o Windows ligar".
+  2. No computador do caixa: baixe e rode o AliberFinanceiro-Instalador.exe
+     (https://github.com/marketingaliber/aliber-financeiro/releases/latest),
+     abra o programa, vá em Configurações e cole a chave.
   3. O dono abre o painel, clica em "Criar conta" e confirma o e-mail.
      Você vai em Administração > Acessos e libera o e-mail dele.
   4. No painel, em Configurações > Formas de pagamento: confira a conta de receita de cada forma,

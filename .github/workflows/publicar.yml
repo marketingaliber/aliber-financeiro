@@ -1,6 +1,7 @@
-# Publica automaticamente uma versão nova do sincronizador sempre que VERSAO (em
-# sincronizador/financeiro.py) mudar. O GitHub compila o .exe no Windows e publica junto
-# com o versao.json que o atualizador lê. O painel (pasta docs) é publicado pelo GitHub Pages.
+# Publica uma versão nova do Aliber Financeiro sempre que VERSAO (em sincronizador/financeiro.py)
+# mudar: o GitHub compila no Windows, monta o instalador, testa a instalação e cria a release
+# com o AliberFinanceiro-Instalador.exe. Os computadores dos clientes trocam de versão pela
+# área do técnico (Configurações > Versões). O painel (pasta docs) sai pelo GitHub Pages.
 name: Publicar versao
 on:
   push:
@@ -21,7 +22,7 @@ jobs:
   build:
     needs: teste
     runs-on: windows-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     defaults:
       run:
         working-directory: sincronizador
@@ -44,27 +45,52 @@ jobs:
         if: steps.v.outputs.existe == '0'
         with:
           python-version: "3.13"
-      - name: Compilar e testar o .exe
+      - name: Compilar o programa
         if: steps.v.outputs.existe == '0'
         shell: pwsh
         run: |
           python -m pip install -r requirements.txt pyinstaller
           python gerar_icone.py
-          python -m PyInstaller --noconfirm --onefile --windowed --name AliberFinanceiro --icon aliber.ico --add-data "aliber.ico;." --hidden-import testes.teste_resumo financeiro.py
-          $p = Start-Process dist/AliberFinanceiro.exe -ArgumentList "--teste" -Wait -PassThru
-          if ($p.ExitCode -ne 0) { Write-Host "::error::Autoteste do .exe falhou (codigo $($p.ExitCode))"; exit 1 }
-          Write-Host "Autoteste do .exe: OK"
-          Start-Process dist/AliberFinanceiro.exe
+          python -m PyInstaller --noconfirm --onedir --windowed --name AliberFinanceiro --icon aliber.ico --add-data "aliber.ico;." --add-data "marca.json;." --hidden-import testes.teste_resumo financeiro.py
+          $p = Start-Process dist/AliberFinanceiro/AliberFinanceiro.exe -ArgumentList "--teste" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { Write-Host "::error::Autoteste do programa falhou (codigo $($p.ExitCode))"; exit 1 }
+          Write-Host "Autoteste do programa: OK"
+      - name: Montar o instalador
+        if: steps.v.outputs.existe == '0'
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress | Out-Null }
+          & $iscc /Qp "/DVERSAO=${{ steps.v.outputs.versao }}" instalador.iss
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup falhou" }
+          Get-Item dist/AliberFinanceiro-Instalador.exe | Format-List Name, Length
+      - name: Testar a instalacao
+        if: steps.v.outputs.existe == '0'
+        shell: pwsh
+        run: |
+          $p = Start-Process dist/AliberFinanceiro-Instalador.exe -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART","/SP-","/TASKS=iniciar" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { Write-Host "::error::Instalador terminou com codigo $($p.ExitCode)"; exit 1 }
+          $exe = Join-Path $env:LOCALAPPDATA "Programs\Aliber Financeiro\AliberFinanceiro.exe"
+          if (-not (Test-Path $exe)) { Write-Host "::error::Programa nao ficou instalado em $exe"; exit 1 }
+          $run = (Get-ItemProperty "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run" -ErrorAction SilentlyContinue)."Aliber Financeiro"
+          if (-not $run) { Write-Host "::error::Nao registrou para abrir com o Windows"; exit 1 }
+          Write-Host "Instalado em $exe; inicio com o Windows: $run"
           Start-Sleep 12
           $procs = @(Get-Process AliberFinanceiro -ErrorAction SilentlyContinue)
           $titulo = ($procs | Where-Object { $_.MainWindowTitle } | Select-Object -First 1).MainWindowTitle
-          $procs | Stop-Process -Force
-          if ($titulo -notlike "Aliber Financeiro*") { Write-Host "::error::A janela nao abriu (janela='$titulo')"; exit 1 }
-          Write-Host "Abertura normal: OK ($titulo)"
-          $v = "${{ steps.v.outputs.versao }}"
-          $notas = (Get-Content NOVIDADES.txt -Raw -ErrorAction SilentlyContinue)
-          $url = "https://github.com/${{ github.repository }}/releases/download/v$v/AliberFinanceiro.exe"
-          @{ versao = $v; url = $url; notas = "$notas".Trim() } | ConvertTo-Json | Set-Content -Encoding utf8 dist/versao.json
+          if ($titulo -notlike "Aliber Financeiro*") { Write-Host "::error::O programa nao abriu depois de instalar (janela='$titulo')"; exit 1 }
+          Write-Host "Abriu depois de instalar: $titulo"
+          # reinstalar por cima com o programa aberto (como a troca de versao faz)
+          $p = Start-Process dist/AliberFinanceiro-Instalador.exe -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART","/SP-" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { Write-Host "::error::Reinstalacao por cima falhou ($($p.ExitCode))"; exit 1 }
+          Start-Sleep 12
+          $n = @(Get-Process AliberFinanceiro -ErrorAction SilentlyContinue).Count
+          Get-Process AliberFinanceiro -ErrorAction SilentlyContinue | Stop-Process -Force
+          if ($n -ne 1) { Write-Host "::error::Depois de reinstalar havia $n programa(s) abertos (esperado 1)"; exit 1 }
+          Write-Host "Reinstalacao por cima: OK"
+          $un = Join-Path $env:LOCALAPPDATA "Programs\Aliber Financeiro\unins000.exe"
+          Start-Process $un -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES" -Wait
+          if (Test-Path $exe) { Write-Host "::warning::Desinstalar deixou o programa na pasta" } else { Write-Host "Desinstalacao: OK" }
       - uses: softprops/action-gh-release@v2
         if: steps.v.outputs.existe == '0' && github.ref == 'refs/heads/main'
         with:
@@ -74,5 +100,4 @@ jobs:
           body_path: sincronizador/NOVIDADES.txt
           make_latest: true
           files: |
-            sincronizador/dist/AliberFinanceiro.exe
-            sincronizador/dist/versao.json
+            sincronizador/dist/AliberFinanceiro-Instalador.exe

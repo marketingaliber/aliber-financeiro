@@ -21,7 +21,7 @@ import nuvem
 import resumo as R
 
 APP_NOME = "Aliber Financeiro"
-VERSAO = "1.0"
+VERSAO = "1.1"
 VERMELHO = "#D7262B"
 AZUL = "#1B4FA0"
 
@@ -31,8 +31,27 @@ if getattr(sys, "frozen", False):
 else:
     PASTA = os.path.dirname(os.path.abspath(__file__))
     RECURSOS = PASTA
-ARQ_CONFIG = os.path.join(PASTA, "financeiro_config.json")
-ARQ_LOG = os.path.join(PASTA, "financeiro_log.txt")
+# Configuração e histórico ficam fora da pasta do programa (o instalador troca a pasta inteira)
+DADOS = os.path.join(os.environ.get("APPDATA") or PASTA, "Aliber Financeiro")
+try:
+    os.makedirs(DADOS, exist_ok=True)
+except OSError:
+    DADOS = PASTA
+ARQ_CONFIG = os.path.join(DADOS, "financeiro_config.json")
+ARQ_LOG = os.path.join(DADOS, "financeiro_log.txt")
+for _n in ("financeiro_config.json", "financeiro_log.txt"):      # versão 1.0 (sem instalador) guardava ao lado do .exe
+    _velho, _novo = os.path.join(PASTA, _n), os.path.join(DADOS, _n)
+    if _velho != _novo and os.path.exists(_velho) and not os.path.exists(_novo):
+        try:
+            import shutil
+            shutil.copy2(_velho, _novo)
+        except OSError:
+            pass
+try:
+    with open(os.path.join(RECURSOS, "marca.json"), encoding="utf-8") as _f:
+        MARCA = json.load(_f)
+except (OSError, ValueError):
+    MARCA = {}
 
 DIAS_REENVIO = 45          # a cada sincronização reenvia os últimos 45 dias (pega cancelamentos tardios)
 
@@ -44,6 +63,7 @@ CONFIG_PADRAO = {
     "supabase_anon": "",
     "ultima_sync": "",
     "historico_enviado": False,
+    "atualizar_sozinho": False,     # o técnico liga na área do técnico (padrão do Aliber Print: desligado)
 }
 
 
@@ -250,6 +270,15 @@ class App:
                     self.log("ERRO  " + texto)
                 elif tipo == "atualizacao":
                     self.oferecer_atualizacao(resp)
+                elif tipo == "instalar":
+                    self.log(f"Instalando a versão {resp['versao']}. O programa abre de novo em alguns segundos.")
+                    try:
+                        atualizador.instalar(texto)
+                        self.root.after(800, self.root.destroy)
+                    except Exception as e:
+                        self.log(f"ERRO ao abrir o instalador: {e}")
+                elif tipo == "erro_versao":
+                    self.log("ERRO ao baixar a versão: " + texto)
                 if tipo in ("ok", "erro"):
                     self.rodando = False
                     self.bt_sync.config(state="normal", text="  SINCRONIZAR AGORA  ")
@@ -258,28 +287,133 @@ class App:
             pass
         self.root.after(300, self.processar_fila)
 
-    # ---- atualização automática
+    # ---- versões (área do técnico) e atualização automática opcional
     def verificar_atualizacao(self):
-        atualizador.limpar_antigos()
-        if not atualizador.pode_se_atualizar():
+        if not (atualizador.instalado() and self.cfg.get("atualizar_sozinho")):
             return
 
         def trabalho():
             try:
-                info = atualizador.buscar(VERSAO)
-                if info:
-                    self.fila.put(("atualizacao", "", info))
+                novas = [v for v in atualizador.listar_versoes(VERSAO) if v["mais_nova"]]
+                if novas:
+                    self.fila.put(("atualizacao", "", novas[0]))
             except Exception:
                 pass
         threading.Thread(target=trabalho, daemon=True).start()
 
     def oferecer_atualizacao(self, info):
         self.log(f"Versão nova disponível: {info['versao']}. Atualizando...")
-        try:
-            atualizador.instalar(info)
-            self.root.after(500, self.root.destroy)
-        except Exception as e:
-            self.log(f"ERRO ao atualizar: {e}")
+        self.instalar_versao(info)
+
+    def instalar_versao(self, info, ao_progredir=None, ao_falhar=None):
+        def trabalho():
+            try:
+                caminho = atualizador.baixar(info, ao_progredir)
+                self.fila.put(("instalar", caminho, info))
+            except Exception as e:
+                self.fila.put(("erro_versao", str(e), None))
+                if ao_falhar:
+                    self.root.after(0, lambda: ao_falhar(str(e)))
+        threading.Thread(target=trabalho, daemon=True).start()
+
+    def area_tecnico(self, pai):
+        w = tk.Toplevel(pai)
+        w.title("Área do técnico")
+        w.configure(bg="white")
+        w.transient(pai)
+        w.grab_set()
+        f = tk.Frame(w, bg="white")
+        f.pack(padx=16, pady=14, fill="both", expand=True)
+        tk.Label(f, text="Senha do técnico (a mesma do Aliber Print)", bg="white", font=("Segoe UI", 10)).pack(anchor="w")
+        linha = tk.Frame(f, bg="white")
+        linha.pack(fill="x", pady=(4, 0))
+        senha = ttk.Entry(linha, show="•", width=30)
+        senha.pack(side="left")
+        senha.focus_set()
+        msg = tk.Label(f, text="", bg="white", fg=VERMELHO, font=("Segoe UI", 9))
+        msg.pack(anchor="w", pady=(4, 0))
+
+        def entrar(_=None):
+            try:
+                atualizador.conferir_senha(senha.get(), MARCA)
+            except RuntimeError as e:
+                msg.config(text=str(e))
+                return
+            for filho in f.winfo_children():
+                filho.destroy()
+            self.tela_versoes(w, f)
+        ttk.Button(linha, text="Entrar", command=entrar).pack(side="left", padx=8)
+        senha.bind("<Return>", entrar)
+
+    def tela_versoes(self, w, f):
+        w.geometry("620x470")
+        tk.Label(f, text=f"Versão instalada: {VERSAO}", bg="white", fg=AZUL, font=("Segoe UI", 11, "bold")).pack(anchor="w")
+        lista = ttk.Treeview(f, columns=("versao", "data", "situacao"), show="headings", height=6, selectmode="browse")
+        for c, t, l in (("versao", "Versão", 90), ("data", "Publicada em", 110), ("situacao", "", 330)):
+            lista.heading(c, text=t)
+            lista.column(c, width=l, anchor="w")
+        lista.pack(fill="x", pady=(8, 6))
+        notas = tk.Text(f, height=7, font=("Segoe UI", 9), relief="solid", bd=1, wrap="word")
+        notas.pack(fill="both", expand=True)
+        estado = tk.Label(f, text="Buscando as versões no GitHub...", bg="white", fg="#555", font=("Segoe UI", 9))
+        estado.pack(anchor="w", pady=(6, 0))
+        var_auto = tk.BooleanVar(value=bool(self.cfg.get("atualizar_sozinho")))
+
+        def trocar_auto():
+            self.cfg["atualizar_sozinho"] = var_auto.get()
+            salvar_config(self.cfg)
+        ttk.Checkbutton(f, text="Instalar sozinho as versões novas ao abrir o programa", variable=var_auto,
+                        command=trocar_auto).pack(anchor="w", pady=(6, 0))
+        rod = tk.Frame(f, bg="white")
+        rod.pack(fill="x", pady=(10, 0))
+        bt = tk.Button(rod, text="  INSTALAR ESTA VERSÃO  ", bg=VERMELHO, fg="white", relief="flat",
+                       font=("Segoe UI", 10, "bold"), state="disabled")
+        bt.pack(side="right")
+        versoes = {}
+
+        def mostrar(_=None):
+            sel = lista.selection()
+            if not sel:
+                return
+            v = versoes[sel[0]]
+            notas.configure(state="normal")
+            notas.delete("1.0", "end")
+            notas.insert("end", v["notas"] or "(sem descrição)")
+            notas.configure(state="disabled")
+            bt.config(state="disabled" if v["instalada"] or not atualizador.instalado() else "normal")
+        lista.bind("<<TreeviewSelect>>", mostrar)
+
+        def carregar():
+            try:
+                vs = atualizador.listar_versoes(VERSAO)
+                self.root.after(0, lambda: preencher(vs))
+            except Exception as e:
+                self.root.after(0, lambda: estado.config(text=str(e), fg=VERMELHO))
+
+        def preencher(vs):
+            for v in vs:
+                d = v["data"]
+                sit = "instalada" if v["instalada"] else ("mais nova" if v["mais_nova"] else "mais antiga")
+                iid = lista.insert("", "end", values=(v["versao"], f"{d[8:10]}/{d[5:7]}/{d[:4]}" if d else "", sit))
+                versoes[iid] = v
+            estado.config(text=("Escolha uma versão para ver as novidades." if vs else "Nenhuma versão publicada ainda.")
+                          + ("" if atualizador.instalado() else "  (rodando sem instalação: só consulta)"), fg="#555")
+            if vs:
+                lista.selection_set(lista.get_children()[0])
+
+        def instalar():
+            sel = lista.selection()
+            if not sel:
+                return
+            v = versoes[sel[0]]
+            if not messagebox.askyesno(APP_NOME, f"Instalar a versão {v['versao']}?\nO programa fecha e abre de novo sozinho.", parent=w):
+                return
+            bt.config(state="disabled")
+            estado.config(text="Baixando...", fg="#555")
+            self.instalar_versao(v, lambda p: self.root.after(0, lambda: estado.config(text=f"Baixando... {p}%")),
+                                 lambda e: (estado.config(text="Não consegui baixar: " + e, fg=VERMELHO), bt.config(state="normal")))
+        bt.config(command=instalar)
+        threading.Thread(target=carregar, daemon=True).start()
 
     # ---- configurações
     def configuracoes(self):
@@ -341,8 +475,22 @@ class App:
                 w.destroy()
                 self.iniciar_sync(True)
         ttk.Button(rod, text="Reenviar histórico completo", command=reenviar).pack(side="left")
+        ttk.Button(rod, text="Versões (técnico)", command=lambda: self.area_tecnico(w)).pack(side="left", padx=8)
         tk.Button(rod, text="  SALVAR  ", bg=AZUL, fg="white", relief="flat", font=("Segoe UI", 10, "bold"),
                   command=salvar).pack(side="right")
+
+
+_trava = None
+
+
+def instancia_unica():
+    """Impede dois Aliber Financeiro abertos ao mesmo tempo (ex.: o do Windows e o do atalho)."""
+    global _trava
+    if os.name != "nt":
+        return True
+    import ctypes
+    _trava = ctypes.windll.kernel32.CreateMutexW(None, False, "AliberFinanceiroUnico")
+    return ctypes.windll.kernel32.GetLastError() != 183      # ERROR_ALREADY_EXISTS
 
 
 def main():
@@ -362,6 +510,13 @@ def main():
         if a == "--teste":
             import testes.teste_resumo as t
             return t.rodar()
+    if not instancia_unica():
+        if "--minimizado" not in args:
+            r = tk.Tk()
+            r.withdraw()
+            messagebox.showinfo(APP_NOME, "O Aliber Financeiro já está aberto. Procure o ícone dele na barra de tarefas.")
+            r.destroy()
+        return 0
     root = tk.Tk()
     App(root, minimizado="--minimizado" in args)
     root.mainloop()

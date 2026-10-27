@@ -1,4 +1,6 @@
-Primeira versão do Aliber Financeiro.
-- Lê as vendas do PDV+ (só leitura) e envia o resumo diário para o painel online a cada 15 minutos
-- Separa recebimento de crediário de venda nova e tira o troco do dinheiro
-- Abre sozinho com o Windows e se atualiza sozinho
+Versão 1.1
+- Instalador do Windows: atalhos na área de trabalho e no menu Iniciar, abre sozinho quando o Windows liga
+- Troca de versão pela área do técnico (Configurações > Versões), com a mesma senha do Aliber Print;
+  dá para voltar para uma versão mais antiga e, se quiser, deixar instalar as novas sozinho
+- Configuração e histórico agora ficam em %APPDATA%\Aliber Financeiro (não se perdem ao trocar de versão)
+- Não abre duas vezes no mesmo computador

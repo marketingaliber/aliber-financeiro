@@ -2,18 +2,19 @@
 
 Plano de contas, fornecedores, contas a pagar e DRE por período para os clientes do PDV+ (Aliber Sistema).
 
-- **sincronizador/**: programa `AliberFinanceiro.exe` que fica no computador do caixa. Lê o banco do PDV+
+- **sincronizador/**: programa Aliber Financeiro (com instalador) que fica no computador do caixa. Lê o banco do PDV+
   **só para leitura** e envia um resumo diário das vendas para a nuvem a cada 15 minutos.
 - **docs/**: o painel online (publicado pelo GitHub Pages). O dono da loja entra com e-mail e senha.
 - **painel/**: código-fonte do painel. `python painel/montar.py` gera `docs/index.html`.
 - **supabase/banco.sql**: banco de dados na nuvem (tabelas, segurança por loja, plano de contas padrão).
 
-**Baixar o sincronizador:** [AliberFinanceiro.exe (última versão)](../../releases/latest/download/AliberFinanceiro.exe)
+**Baixar o instalador:** [AliberFinanceiro-Instalador.exe (última versão)](../../releases/latest/download/AliberFinanceiro-Instalador.exe)
 
 ## Publicar uma versão nova do sincronizador
 1. Altere `VERSAO` em `sincronizador/financeiro.py` e descreva as mudanças em `sincronizador/NOVIDADES.txt`.
-2. Envie para o ramo `main`. O GitHub compila o .exe e publica a versão sozinho; os programas instalados
-   se atualizam ao abrir.
+2. Envie para o ramo `main`. O GitHub compila, monta o instalador, testa a instalação e publica a versão.
+3. Nos clientes, o técnico troca a versão em Configurações > Versões (técnico), com a senha do técnico
+   (a mesma do Aliber Print, `sincronizador/marca.json`). Atualização sozinha só se o técnico ligar.
 
 ## Plano de contas e DRE gerencial
 O plano padrão segue o modelo gerencial em três níveis (grupo, subgrupo e conta), com 18 subgrupos e 112 contas:
