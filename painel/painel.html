@@ -172,6 +172,12 @@ tr.clicavel:hover td { background: color-mix(in srgb, var(--brand-soft) 45%, tra
 .plano .s .cod { color: var(--fg) }
 .plano .s ~ .c { padding-left: 30px }
 input[type=file] { font-size: 14px }
+.campo-com-botao { display: flex; gap: 6px; align-items: stretch }
+.campo-com-botao select { flex: 1 1 auto; min-width: 0 }
+.campo-com-botao .bt { flex: none }
+div.campo > label { font-size: 13px; font-weight: 600; color: var(--muted) }
+.novo-forn { border: 1px solid var(--brand); background: var(--brand-soft); border-radius: var(--r); padding: 12px; display: grid; gap: 10px }
+.novo-forn-topo { display: flex; justify-content: space-between; align-items: center }
 /* plano de contas */
 .plano { display: grid; gap: 14px }
 .plano .g { border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); overflow: hidden }
@@ -215,7 +221,7 @@ input[type=file] { font-size: 14px }
    ===================================================================== */
 const CONFIG = { supabaseUrl: "", supabaseAnon: "" };
 const DEMO_RESUMO = /*DEMO*/null/*FIM*/;
-const VERSAO_PAINEL = "2.4";
+const VERSAO_PAINEL = "2.5";
 
 /* ---------------------------------------------------------------- utilidades */
 const $ = s => document.querySelector(s);
@@ -964,8 +970,16 @@ function formConta(l, entrada) {
   abrirModal(novo ? (entrada ? "Nova entrada a receber" : "Nova conta a pagar") : (entrada ? "Editar entrada" : "Editar conta"), `
     <label class="campo">Descrição<input type="text" id="f-desc" required value="${esc(l.descricao)}" placeholder="${entrada ? "Ex.: Empréstimo, Venda de equipamento usado" : "Ex.: Compra de insumos, Conta de luz"}"></label>
     <div class="duas">
-      <label class="campo">${entrada ? "De quem (opcional)" : "Fornecedor"}<select id="f-forn" data-acao-change="forn-conta"><option value="">(sem fornecedor)</option>${fs.map(f => `<option value="${f.id}" ${f.id === l.fornecedor_id ? "selected" : ""}>${esc(f.nome)}</option>`).join("")}</select></label>
+      <div class="campo"><label for="f-forn">${entrada ? "De quem (opcional)" : "Fornecedor"}</label><div class="campo-com-botao"><select id="f-forn" data-acao-change="forn-conta"><option value="">(sem fornecedor)</option>${fs.map(f => `<option value="${f.id}" ${f.id === l.fornecedor_id ? "selected" : ""}>${esc(f.nome)}</option>`).join("")}</select><button type="button" class="bt mini" data-acao="forn-rapido-abrir" title="Cadastrar um fornecedor novo sem sair desta conta">+ Novo</button></div></div>
       <label class="campo">Conta do plano<select id="f-conta" required><option value="">Escolha…</option>${opcoesPlano(l.conta_id, entrada ? { entrada: true } : { saida: true })}</select></label>
+    </div>
+    <div id="f-novo-forn" class="novo-forn" hidden>
+      <div class="novo-forn-topo"><b>Novo fornecedor</b><button type="button" class="x" data-acao="forn-rapido-fechar" aria-label="Fechar cadastro rápido">×</button></div>
+      <div class="duas"><label class="campo">Nome<input type="text" id="nf-nome" placeholder="Ex.: Vidraçaria São José"></label>
+        <label class="campo">CPF / CNPJ (opcional)<input type="text" id="nf-doc" inputmode="numeric"></label></div>
+      <div class="duas"><label class="campo">Telefone / WhatsApp (opcional)<input type="text" id="nf-fone"></label>
+        <label class="campo">Conta padrão<select id="nf-conta"><option value="">A mesma desta conta</option>${opcoesPlano(null, { saida: true })}</select></label></div>
+      <div class="barra" style="justify-content:flex-end"><button type="button" class="bt" data-acao="forn-rapido-fechar">Cancelar</button><button type="button" class="bt azul" data-acao="forn-rapido-salvar">Cadastrar e usar nesta conta</button></div>
     </div>
     <div class="duas">
       <label class="campo">${novo ? "Valor total" : "Valor"}<input type="text" inputmode="decimal" id="f-valor" required value="${l.valor != null ? numBR(l.valor) : ""}" placeholder="0,00"></label>
@@ -1530,6 +1544,24 @@ document.addEventListener("click", async ev => {
     if (a === "receber-status") { S.receber.status = el.dataset.v; document.querySelectorAll('[data-acao="receber-status"]').forEach(b => b.classList.toggle("on", b === el)); return desenharListaReceber(); }
     if (a === "detalhe-receber") { const c = recebiveisUnificados().find(x => x.id === id); if (!c) return; return c.tipo === "crediario" ? detalheReceber(c) : detalheRecebivel(c); }
     if (a === "novo-forn") return formFornecedor(null);
+    if (a === "forn-rapido-abrir") { const p = $("#f-novo-forn"); p.hidden = false; $("#nf-nome").value = ""; $("#nf-doc").value = ""; $("#nf-fone").value = ""; setTimeout(() => $("#nf-nome").focus(), 30); return; }
+    if (a === "forn-rapido-fechar") { $("#f-novo-forn").hidden = true; return; }
+    if (a === "forn-rapido-salvar") {
+      const nome = $("#nf-nome").value.trim(), doc = $("#nf-doc").value.trim(), dig = doc.replace(/\D/g, "");
+      if (!nome) { $("#nf-nome").focus(); return toast("Informe o nome do fornecedor.", true); }
+      const sel = f => { const o = $(`#f-forn option[value="${f.id}"]`) || $("#f-forn").appendChild(Object.assign(document.createElement("option"), { value: f.id, textContent: f.nome }));
+        $("#f-forn").value = f.id; if (!$("#f-desc").value) $("#f-desc").value = f.nome;
+        if (f.conta_padrao_id && !$("#f-conta").value && $(`#f-conta option[value="${f.conta_padrao_id}"]`)) $("#f-conta").value = f.conta_padrao_id;
+        $("#f-novo-forn").hidden = true; };
+      const existe = S.d.fornecedores.find(f => (dig && (f.cpf_cnpj || "").replace(/\D/g, "") === dig) || f.nome.trim().toLowerCase() === nome.toLowerCase());
+      if (existe) { if (!existe.ativo) { await S.db.atualizar("fornecedores", { id: existe.id }, { ativo: true }); existe.ativo = true; }
+        sel(existe); return toast(`"${existe.nome}" já estava cadastrado e foi escolhido.`); }
+      el.disabled = true;
+      try { const [f] = await S.db.inserir("fornecedores", [{ empresa_id: S.empresaId, nome, cpf_cnpj: doc, fone: $("#nf-fone").value.trim(), email: "",
+          conta_padrao_id: $("#nf-conta").value || $("#f-conta").value || null, obs: "Cadastrado ao lançar uma conta", ativo: true }]);
+        S.d.fornecedores.push(f); sel(f); toast("Fornecedor cadastrado."); } finally { el.disabled = false; }
+      return;
+    }
     if (a === "editar-forn") return formFornecedor(fornPorId(id));
     if (a === "conta-do-forn") { const f = fornPorId(id); formConta(null, false); $("#f-forn").value = f.id; if (f.conta_padrao_id && $(`#f-conta option[value="${f.conta_padrao_id}"]`)) $("#f-conta").value = f.conta_padrao_id; if (!$("#f-desc").value) $("#f-desc").value = f.nome; return; }
     if (a === "novo-subgrupo") { const G = GRUPOS.find(x => x.g === el.dataset.g); return formPlano(null, { g: G.g, pai: G.cod, sintetica: true }); }
