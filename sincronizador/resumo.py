@@ -361,7 +361,9 @@ def recebiveis(db_path, data_ini, data_fim):
         linhas = con.execute(
             f"""select p.id_venda_forma_pagamento id, p.forma_pagamento forma, coalesce(p.valor,0) valor, p.bandeira_cartao bandeira,
                        v.id_venda, v.data_hora_finalizada quando, v.codigo_dispositivo, v.codigo_venda, coalesce(v.tipo_venda,1) tipo,
-                       coalesce(v.valor_troco,0) troco, v.nome_cliente,
+                       coalesce(v.valor_troco,0) troco, v.nome_cliente, coalesce(v.valor_total,0) total_venda,
+                       (select coalesce(sum(coalesce(i.preco_custo_unitario,0)*coalesce(i.qtd,0)),0) from venda_item i
+                         where i.id_venda=v.id_venda and i.data_hora_deletado is null and coalesce(i.cancelado,0)=0) custo_venda,
                        {"t.nsu_transacao nsu, t.codigo_autorizacao aut, t.parcela parcelas, t.tipo_parcelamento tparc"
                         if tem_t else "null nsu, null aut, null parcelas, null tparc"}
                   from venda_forma_pagamento p
@@ -395,5 +397,7 @@ def recebiveis(db_path, data_ini, data_fim):
             "tipo_venda": int(p["tipo"]), "cliente": (p["nome_cliente"] or "").strip(),
             "bandeira": p["bandeira"], "nsu": p["nsu"] or "", "autorizacao": p["aut"] or "",
             "parcelas": max(1, int(p["parcelas"] or 1)),
+            # parte do custo da venda que cabe a este pagamento (usado para as perdas, a preço de custo)
+            "custo": _r(float(p["custo_venda"]) * valor / float(p["total_venda"])) if float(p["total_venda"] or 0) > 0 else 0.0,
         })
     return out

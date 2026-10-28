@@ -1,7 +1,7 @@
-Versão 1.5
-- Recebíveis de todas as vendas: cada pagamento (Pix, cartão de crédito e débito, dinheiro...) vai para o painel
-  com venda, data e hora, cliente, NSU, autorização e número de parcelas da maquininha (últimos 400 dias)
-- No painel, Contas a receber mostra tudo o que a loja tem para receber: crediário e vendas, com previsão
-  de quando o cartão cai (pelo prazo e taxa de cada forma de pagamento) e valor líquido
-- Contas a receber e Contas a pagar: filtro de datas igual ao do PDV+ (Hoje, 7D, 1M, 3M, 6M, 1A, Próx. 30D
-  ou datas livres), escolha da data usada no filtro, ordenação clicando no título da coluna e detalhes de cada linha
+Versão 1.6
+- Perdas de mercadoria: o programa passa a mandar o custo de cada pagamento das vendas, para o painel mostrar as
+  perdas a preço de custo
+- No painel (Configurações > Perdas): escolha a forma de pagamento que a loja usa no PDV+ para lançar as perdas
+  (ex.: Vale alimentação). O que for pago nela sai do faturamento, da receita, dos recebíveis e do caixa, e entra
+  na DRE em 3.2.5 Perdas de mercadoria
+- Configurações do painel organizadas em abas

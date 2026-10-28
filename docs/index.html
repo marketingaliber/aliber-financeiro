@@ -181,6 +181,7 @@ tr.clicavel:hover td { background: color-mix(in srgb, var(--brand-soft) 45%, tra
 .plano .s .cod { color: var(--fg) }
 .plano .s ~ .c { padding-left: 30px }
 input[type=file] { font-size: 14px }
+.seg.abas { justify-self: start }
 .campo-com-botao { display: flex; gap: 6px; align-items: stretch }
 .campo-com-botao select { flex: 1 1 auto; min-width: 0 }
 .campo-com-botao .bt { flex: none }
@@ -230,7 +231,7 @@ div.campo > label { font-size: 13px; font-weight: 600; color: var(--muted) }
    ===================================================================== */
 const CONFIG = {"supabaseUrl": "https://gdoklolbjrnnqcklgjtt.supabase.co", "supabaseAnon": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdkb2tsb2xianJubnFja2xnanR0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMwNTY5ODQsImV4cCI6MjEwODYzMjk4NH0.YoBdRMey8JKVYR7HWeTZsRVWxOFq1L94E7nq5qtQYd0"};
 const DEMO_RESUMO = /*DEMO*/null/*FIM*/;
-const VERSAO_PAINEL = "2.5";
+const VERSAO_PAINEL = "2.6";
 
 /* ---------------------------------------------------------------- utilidades */
 const $ = s => document.querySelector(s);
@@ -302,6 +303,7 @@ const PLANO_PADRAO = [
   ["3.2.2", "Farinhas", "custo_variavel", false],
   ["3.2.3", "Recheios", "custo_variavel", false],
   ["3.2.4", "Açucares", "custo_variavel", false],
+  ["3.2.5", "Perdas de mercadoria", "custo_variavel", false, "perdas"],
   ["3.3", "CUSTOS COM FRETE", "custo_variavel", true],
   ["3.3.1", "Custos com Fretes Produtos", "custo_variavel", false],
   ["3.4", "CUSTOS COM MÃO DE OBRA VARIÁVEL", "custo_variavel", true],
@@ -416,7 +418,7 @@ const PLANO_PADRAO = [
   ["6.2.5", "Desconto Obtido", "entrada_nop", false, "desconto_obtido"],
   ["6.2.6", "Receita de Juros", "entrada_nop", false, "juros_recebidos"],
 ];
-const AUTO_DESC = { taxas: "calculada pela taxa de cada forma de pagamento (Configurações)", juros_pagos: "recebe a diferença quando uma conta é paga com juros",
+const AUTO_DESC = { perdas: "recebe as perdas de mercadoria (a preço de custo) lançadas no PDV+ na forma de pagamento das perdas", taxas: "calculada pela taxa de cada forma de pagamento (Configurações)", juros_pagos: "recebe a diferença quando uma conta é paga com juros",
   desconto_obtido: "recebe a diferença quando uma conta é paga com desconto", juros_recebidos: "recebe a diferença quando uma entrada é recebida a mais" };
 const segs = c => c.split(".").map(n => parseInt(n) || 0);
 function ordemCod(a, b) { const x = segs(a.codigo || a), y = segs(b.codigo || b);
@@ -434,6 +436,21 @@ function arvore(cs) {
 }
 const ehAPrazo = f => f ? (f.a_prazo ?? +f.codigo === 2) : false;
 
+/* ---- Perdas: vendas do PDV+ finalizadas na forma de pagamento das perdas (Configurações > Perdas).
+   Não são venda: saem da receita, dos recebíveis e do caixa, e entram na conta de perdas a preço de custo. */
+const formaPerdaDe = d => { const v = d.config?.forma_perda; return v === null || v === undefined || v === "" ? null : +v; };
+function contaPerdasDe(d) { return d.config?.conta_perdas_id || d.plano.find(c => c.automatica === "perdas")?.id || null; }
+function perdasNoPeriodo(ini, fim, d) {
+  const fp = formaPerdaDe(d), out = { valor: 0, custo: 0, qtd: 0, porDia: {} }; if (fp === null) return out;
+  const custoRec = {}; (d.recebiveis || []).forEach(r => { if (+r.forma === fp && r.custo != null) custoRec[r.data] = (custoRec[r.data] || 0) + +r.custo; });
+  const vd = {}; d.vendas.forEach(x => { const o = vd[x.data] = vd[x.data] || { t: 0, c: 0 }; o.t += +x.total || 0; o.c += +x.custo || 0; });
+  d.pagamentos.forEach(p => { if (p.categoria !== "venda" || +p.forma !== fp || p.data < ini || p.data > fim) return;
+    const v = +p.valor || 0, c = custoRec[p.data] != null ? custoRec[p.data] : (vd[p.data]?.t ? v * vd[p.data].c / vd[p.data].t : 0);
+    out.valor += v; out.custo += c; out.qtd += +p.qtd || 0;
+    const o = out.porDia[p.data] = out.porDia[p.data] || { valor: 0, custo: 0, qtd: 0 }; o.valor += v; o.custo += c; o.qtd += +p.qtd || 0; });
+  return out;
+}
+
 /** Valor de cada conta no período. opc = { regime: competencia|caixa, cmv: compras|cadastro } */
 function valoresDRE(ini, fim, opc, d) {
   const v = {}; const add = (id, x) => { if (id && x) v[id] = (v[id] || 0) + x; };
@@ -441,13 +458,21 @@ function valoresDRE(ini, fim, opc, d) {
   const dentro = s => s >= ini && s <= fim, caixa = opc.regime === "caixa";
   const fm = {}; d.formas.forEach(f => fm[f.codigo] = f);
   const outras = (d.plano.find(c => c.codigo === "1.1.8") || d.plano.find(c => c.grupo === "receita" && !c.sintetica))?.id;
+  const fp = formaPerdaDe(d);
   d.pagamentos.forEach(p => { const f = fm[p.forma];
+    if (fp !== null && +p.forma === fp) return;                  // perda não é receita
     if (caixa ? (p.categoria === "venda" && ehAPrazo(f)) : p.categoria === "recebimento") return;
     const dt = caixa ? addDias(p.data, +(f?.prazo_dias) || 0) : p.data; if (!dentro(dt)) return;
     const val = +p.valor || 0; add(f?.conta_receita_id || outras, val);
     const t = +(f?.taxa_percentual) || 0; if (t && !ehAPrazo(f)) add(auto.taxas, val * t / 100); });
   const cmvCadastro = opc.cmv === "cadastro";
   if (cmvCadastro) v.__cmv = d.vendas.filter(x => dentro(x.data)).reduce((s, x) => s + (+x.custo || 0), 0);
+  if (fp !== null) {                                              // perdas a preço de custo, já contidas no custo das compras/cadastro
+    const pr = perdasNoPeriodo(ini, fim, d).custo, contaP = contaPerdasDe(d);
+    if (pr && contaP) { add(contaP, pr);
+      if (cmvCadastro) v.__cmv -= pr;
+      else add(d.config?.conta_compras_id || d.plano.find(c => c.codigo === "3.2.1")?.id, -pr); }
+  }
   d.lancamentos.forEach(l => { const c = porId[l.conta_id]; if (!c) return;
     if (cmvCadastro && c.codigo.startsWith("3.2.")) return;
     if (caixa) { if (l.pago_em && dentro(l.pago_em)) add(l.conta_id, +l.valor); } else if (dentro(l.competencia)) add(l.conta_id, +l.valor);
@@ -477,7 +502,8 @@ function mesesDoPeriodo(ini, fim) { const out = []; let m = inicioMes(ini);
 function movimentosConta(cf, d) {
   const out = [], fm = {}; d.formas.forEach(f => fm[f.codigo] = f);
   const ag = {};
-  d.pagamentos.forEach(p => { const f = fm[p.forma]; if (!f || f.conta_financeira_id !== cf.id) return;
+  const fp = formaPerdaDe(d);
+  d.pagamentos.forEach(p => { const f = fm[p.forma]; if (!f || f.conta_financeira_id !== cf.id || (fp !== null && +p.forma === fp)) return;
     if (p.categoria === "venda" && ehAPrazo(f)) return;
     const dt = addDias(p.data, +f.prazo_dias || 0), k = dt + "|" + p.forma + "|" + p.data;
     const liq = (+p.valor || 0) * (1 - (+f.taxa_percentual || 0) / 100);
@@ -786,7 +812,8 @@ function infoSync() { const e = empresa(); if (!e) return "";
 function vResumo() {
   const P = S.periodo, d = S.d, r = calcularDRE(P.ini, P.fim, opcDRE(), d), h = hoje();
   const vend = d.vendas.filter(x => x.data >= P.ini && x.data <= P.fim);
-  const qtd = vend.reduce((s, x) => s + x.qtd, 0), fat = vend.reduce((s, x) => s + +x.total, 0);
+  const perdas = perdasNoPeriodo(P.ini, P.fim, d);
+  const qtd = Math.max(0, vend.reduce((s, x) => s + x.qtd, 0) - perdas.qtd), fat = vend.reduce((s, x) => s + +x.total, 0) - perdas.valor;
   const canc = vend.reduce((s, x) => s + x.canceladas_qtd, 0);
   const abertas = d.lancamentos.filter(l => !l.pago_em && !ehEntrada(l));
   const venc = abertas.filter(l => l.vencimento < h), sem = abertas.filter(l => l.vencimento >= h && l.vencimento <= addDias(h, 7));
@@ -795,20 +822,21 @@ function vResumo() {
   const saldo = saldos.reduce((s, x) => s + x.hoje, 0), aReceber = saldos.reduce((s, x) => s + x.futuro, 0);
   return cabecalho("Resumo", esc(empresa()?.nome) + " · " + infoSync(), "") + seletorPeriodo() + `
   <div class="kpis">
-    <div class="kpi"><span>Faturamento</span><b>${brl(fat)}</b><small>${qtd} vendas · ticket médio ${brl(qtd ? fat / qtd : 0)}</small></div>
+    <div class="kpi"><span>Faturamento</span><b>${brl(fat)}</b><small>${qtd} vendas · ticket médio ${brl(qtd ? fat / qtd : 0)}${perdas.qtd ? `<br>${perdas.qtd} perda(s): ${brl(perdas.custo)} a preço de custo (fora do faturamento)` : ""}</small></div>
     <div class="kpi destaque"><span>Resultado operacional</span><b class="${r.resultadoOper < 0 ? "neg" : ""}">${brl(r.resultadoOper)}</b><small>margem de contribuição ${pct(r.receita ? r.margem / r.receita : NaN)} · ${S.dre.regime === "caixa" ? "caixa" : "competência"}</small></div>
     <div class="kpi"><span>Caixa e bancos hoje</span><b class="${saldo < 0 ? "neg" : ""}">${brl(saldo)}</b><small>${aReceber ? brl(aReceber) + " a receber das maquininhas" : d.bancos.length + " conta(s)"}</small></div>
     <div class="kpi"><span>Contas vencidas</span><b class="${venc.length ? "neg" : ""}">${brl(soma(venc))}</b><small>${brl(soma(sem))} vencem em 7 dias</small></div>
   </div>
   <div class="grade">
-    <section class="painel" style="grid-column:1/-1"><h2>Vendas por dia <small>${canc ? canc + " venda(s) cancelada(s) no período" : ""}</small></h2>${graficoDias(vend, P.ini, P.fim)}</section>
+    <section class="painel" style="grid-column:1/-1"><h2>Vendas por dia <small>${canc ? canc + " venda(s) cancelada(s) no período" : ""}</small></h2>${graficoDias(vend, P.ini, P.fim, perdas.porDia)}</section>
     <section class="painel"><h2>Formas de pagamento</h2>${blocoFormas(P)}</section>
     <section class="painel"><h2>Próximos vencimentos <small><a href="#contas">ver todas</a></small></h2>${blocoVencimentos(abertas)}</section>
     <section class="painel"><h2>Resultado do período <small><a href="#dre">abrir DRE</a></small></h2>${miniDRE(r)}</section>
   </div>`;
 }
-function graficoDias(vend, ini, fim) {
+function graficoDias(vend, ini, fim, perdasDia = {}) {
   const porDia = {}; vend.forEach(x => porDia[x.data] = (porDia[x.data] || 0) + +x.total);
+  Object.entries(perdasDia).forEach(([dt, p]) => { if (porDia[dt] != null) porDia[dt] = Math.max(0, porDia[dt] - p.valor); });
   let dias = []; for (let dt = ini; dt <= fim && dias.length < 400; dt = addDias(dt, 1)) dias.push(dt);
   let mensal = false;
   if (dias.length > 62) { const m = {}; dias.forEach(dt => { const k = inicioMes(dt); m[k] = (m[k] || 0) + (porDia[dt] || 0); }); dias = Object.keys(m); dias.forEach(k => porDia[k] = m[k]); mensal = true; }
@@ -827,7 +855,8 @@ function graficoDias(vend, ini, fim) {
   return `<div class="graf"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Faturamento por ${mensal ? "mês" : "dia"}">${g}${barras}</svg></div>`;
 }
 function blocoFormas(P) {
-  const t = {}; S.d.pagamentos.filter(p => p.data >= P.ini && p.data <= P.fim).forEach(p => t[p.forma] = (t[p.forma] || 0) + +p.valor);
+  const fp = formaPerdaDe(S.d);
+  const t = {}; S.d.pagamentos.filter(p => p.data >= P.ini && p.data <= P.fim && (fp === null || +p.forma !== fp)).forEach(p => t[p.forma] = (t[p.forma] || 0) + +p.valor);
   const tot = Object.values(t).reduce((a, b) => a + b, 0); if (!tot) return `<div class="vazio">Sem recebimentos no período.</div>`;
   const nome = c => S.d.formas.find(f => f.codigo == c)?.nome || "Forma " + c;
   return `<div class="formas">${Object.entries(t).sort((a, b) => b[1] - a[1]).map(([c, v]) => `<div class="forma"><span>${esc(nome(c))}</span><b class="num">${brl(v)} <span class="nota">${pct(v / tot)}</span></b><div class="trilho"><i style="width:${(v / tot * 100).toFixed(1)}%"></i></div></div>`).join("")}</div>`;
@@ -1056,7 +1085,8 @@ function recebiveisUnificados() {
   const credForma = S.d.formas.find(f => ehAPrazo(f));
   const out = S.d.receber.map(c => ({ ...c, id: "c:" + c.origem_id, tipo: "crediario", forma: credForma ? credForma.codigo : 2, data: c.competencia, venc: c.vencimento,
     liquido: +c.valor, conta_id: credForma?.conta_receita_id }));
-  S.d.recebiveis.forEach(r => { const f = fm[r.forma]; if (ehAPrazo(f) || (!f && +r.forma === 2)) return;
+  const fp = formaPerdaDe(S.d);
+  S.d.recebiveis.forEach(r => { const f = fm[r.forma]; if (ehAPrazo(f) || (!f && +r.forma === 2) || (fp !== null && +r.forma === fp)) return;
     const n = Math.max(1, +r.parcelas || 1), prazo = +(f?.prazo_dias) || 0, taxa = +(f?.taxa_percentual) || 0, cent = Math.round(+r.valor * 100);
     for (let i = 1; i <= n; i++) {
       const v = (i === n ? cent - Math.floor(cent / n) * (n - 1) : Math.floor(cent / n)) / 100;
@@ -1434,23 +1464,25 @@ function formRestaurar() {
 }
 
 /* ---------------------------------------------------------------- CONFIGURAÇÕES */
+const ABAS_CFG = [["formas", "Formas de pagamento"], ["compras", "Compras do PDV+"], ["perdas", "Perdas"], ["sync", "Sincronização"], ["conta", "Sua conta"]];
 function vConfig() {
-  const e = empresa();
-  return cabecalho("Configurações", esc(e?.nome)) + `
-  <section class="painel"><h2>Formas de pagamento do PDV+ <small>em qual conta do plano a venda entra, onde o dinheiro cai, taxa e prazo</small></h2>
+  const e = empresa(), aba = ABAS_CFG.some(a => a[0] === S.cfgAba) ? S.cfgAba : "formas";
+  const fp = formaPerdaDe(S.d);
+  const partes = {
+  formas: () => `<section class="painel"><h2>Formas de pagamento do PDV+ <small>em qual conta do plano a venda entra, onde o dinheiro cai, taxa e prazo</small></h2>
     <form data-form="formas"><div class="tabela"><table><thead><tr><th>Cód.</th><th>Nome</th><th>Conta de receita</th><th>Cai em</th><th>Crediário</th><th class="v">Taxa %</th><th class="v">Prazo (dias)</th></tr></thead><tbody>
-    ${S.d.formas.map(f => `<tr><td class="cod">${f.codigo}</td><td><input type="text" id="fp-nome-${f.codigo}" value="${esc(f.nome)}" aria-label="Nome da forma ${f.codigo}"></td>
+    ${S.d.formas.map(f => `<tr><td class="cod">${f.codigo}</td><td><input type="text" id="fp-nome-${f.codigo}" value="${esc(f.nome)}" aria-label="Nome da forma ${f.codigo}">${fp === +f.codigo ? '<span class="sec"><span class="pill warn">usada para perdas</span></span>' : ""}</td>
       <td><select id="fp-conta-${f.codigo}" aria-label="Conta de receita" style="min-width:190px">${opcoesPlano(f.conta_receita_id, { entrada: true })}</select></td>
       <td><select id="fp-cf-${f.codigo}" aria-label="Cai em" style="min-width:150px">${opcoesBancos(f.conta_financeira_id, "(nenhuma)")}</select></td>
       <td style="text-align:center"><input type="checkbox" id="fp-prazo-ap-${f.codigo}" ${ehAPrazo(f) ? "checked" : ""} aria-label="É crediário"></td>
       <td class="v"><input type="text" inputmode="decimal" id="fp-taxa-${f.codigo}" value="${numBR(f.taxa_percentual)}" style="width:80px;min-width:0;text-align:right" aria-label="Taxa"></td>
       <td class="v"><input type="number" min="0" max="120" id="fp-prazo-${f.codigo}" value="${f.prazo_dias}" style="width:72px;text-align:right" aria-label="Prazo"></td></tr>`).join("")}
     </tbody></table></div>
-    <p class="nota">A taxa vai para 3.1.3 Taxa de cartões. "Crediário" marca a forma que só vira dinheiro quando o cliente paga. Exemplo de taxas: crédito 3,19% em 30 dias; débito 1,39% em 1 dia; Pix 0,99% na hora.</p>
+    <p class="nota">A taxa vai para 3.1.3 Taxa de cartões. "Crediário" marca a forma que só vira dinheiro quando o cliente paga. A forma marcada para perdas (aba Perdas) não conta como venda.</p>
     <div class="barra" style="justify-content:flex-end"><button class="bt azul" type="submit">Salvar formas de pagamento</button></div></form>
-  </section>
-  <section class="painel"><h2>Compras do PDV+ <small>fornecedores e contas a pagar vindos da entrada de notas</small></h2>
-    ${S.d.config ? `<form data-form="compras"><div class="duas" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:12px">
+  </section>`,
+  compras: () => `<section class="painel"><h2>Compras do PDV+ <small>fornecedores e contas a pagar vindos da entrada de notas</small></h2>
+    ${S.d.config ? `<form data-form="compras"><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:12px">
       <label class="check" style="grid-column:1/-1"><input type="checkbox" id="cp-importar" ${S.d.config.importar_compras ? "checked" : ""}> Importar as entradas de nota e os fornecedores do PDV+</label>
       <label class="campo">Conta padrão das compras<select id="cp-conta">${opcoesPlano(S.d.config.conta_compras_id, { saida: true })}</select></label>
       <label class="campo">Paga com (padrão)<select id="cp-banco">${opcoesBancos(S.d.config.banco_compras_id)}</select></label>
@@ -1459,14 +1491,39 @@ function vConfig() {
       O fornecedor que tiver "Conta padrão" no cadastro usa a dele. Conta paga ou editada no painel não é alterada; conta excluída aqui não volta.</p>
       <div class="barra" style="justify-content:flex-end"><button class="bt azul" type="submit">Salvar</button></div></form>`
       : `<p class="nota" style="margin:0">Aparece depois da primeira sincronização com o Aliber Financeiro 1.2 ou mais novo.</p>`}
-  </section>
-  <section class="painel"><h2>Sincronização com o PDV+</h2>
+  </section>`,
+  perdas: () => { if (!S.d.config) return `<section class="painel"><h2>Perdas de mercadoria</h2><p class="nota" style="margin:0">Aparece depois da primeira sincronização com o programa da loja e depois de rodar o banco.sql da versão 1.6 no Supabase.</p></section>`;
+    const h = hoje(), m30 = perdasNoPeriodo(addDias(h, -29), h, S.d), mes = perdasNoPeriodo(inicioMes(h), h, S.d), contaP = contaPerdasDe(S.d);
+    const temP = S.d.plano.some(c => c.automatica === "perdas");
+    return `<section class="painel"><h2>Perdas de mercadoria <small>vendas do PDV+ que na verdade são perdas</small></h2>
+    <p style="margin:0 0 12px">No PDV+, registre a perda como uma venda e finalize sempre na mesma forma de pagamento, uma que a loja não usa para vender (ex.: <b>Vale alimentação</b>). Escolha essa forma aqui. A partir daí, o que for pago nela:</p>
+    <ul style="margin:0 0 12px;padding-left:20px;display:grid;gap:2px"><li><b>não conta</b> como faturamento, receita, recebível nem dinheiro no caixa;</li>
+      <li><b>entra na DRE</b> na conta de perdas, <b>a preço de custo</b> (o custo dos produtos cadastrado no PDV+).</li></ul>
+    <form data-form="perdas"><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:12px">
+      <label class="campo">Forma de pagamento usada para perdas<select id="pd-forma"><option value="">Nenhuma (não usar)</option>${S.d.formas.map(f => `<option value="${f.codigo}" ${fp === +f.codigo ? "selected" : ""}>Cód. ${f.codigo} · ${esc(f.nome)}</option>`).join("")}</select></label>
+      <label class="campo">Conta do plano para as perdas<select id="pd-conta">${opcoesPlano(contaP, { saida: true })}</select></label>
+      <label class="check" style="grid-column:1/-1"><input type="checkbox" id="pd-renomear" checked> Renomear a forma escolhida para "Vale alimentação (perdas)"</label></div>
+      ${temP ? "" : '<p class="nota neg" style="margin:8px 0 0">O plano desta loja não tem a conta 3.2.5 Perdas de mercadoria. Use "Completar com o plano padrão" em Plano de contas ou escolha outra conta.</p>'}
+      <div class="barra" style="justify-content:flex-end;margin-top:10px"><button class="bt azul" type="submit">Salvar</button></div></form>
+    ${fp !== null ? `<div class="kpis" style="margin-top:14px">
+      <div class="kpi"><span>Perdas neste mês</span><b>${brl(mes.custo)}</b><small>${mes.qtd} lançamento(s) · ${brl(mes.valor)} a preço de venda</small></div>
+      <div class="kpi"><span>Últimos 30 dias</span><b>${brl(m30.custo)}</b><small>${m30.qtd} lançamento(s) · ${brl(m30.valor)} a preço de venda</small></div></div>
+      ${m30.valor && !m30.custo ? '<p class="nota neg">Os produtos dessas perdas estão sem preço de custo no cadastro do PDV+, por isso a perda aparece zerada. Cadastre o preço de custo dos produtos.</p>' : ""}` : ""}
+    <h3 style="font-size:15px;margin:16px 0 4px">Como descobrir qual código é o Vale alimentação</h3>
+    <ol class="nota" style="margin:0;padding-left:20px;display:grid;gap:2px"><li>No PDV+, faça uma venda de teste baixa (ex.: R$ 0,10) e finalize em <b>Vale alimentação</b>.</li>
+      <li>Espere a sincronização (até 15 minutos) ou clique em SINCRONIZAR AGORA no programa da loja.</li>
+      <li>Em <b>Contas a receber</b>, escolha "Hoje" e a situação "Todas": a venda de teste aparece com o nome da forma (ex.: "Forma 6"). Esse é o código.</li>
+      <li>Escolha esse código aqui e cancele a venda de teste no PDV+.</li></ol>
+  </section>`; },
+  sync: () => `<section class="painel"><h2>Sincronização com o PDV+</h2>
     <p style="margin:0 0 6px">${infoSync()}${e?.versao_sync ? ` · sincronizador v${esc(e.versao_sync)}` : ""}.</p>
     <p class="nota" style="margin:0">O programa <b>Aliber Financeiro</b> no computador do caixa envia as vendas a cada 15 minutos. Se a data acima estiver antiga, confira se o programa está aberto e com internet.</p>
     ${S.admin ? `<p style="margin:12px 0 0">Chave desta loja para o sincronizador: <code class="cod" style="font-size:14px;color:var(--fg)">${esc(e?.chave_sync)}</code> <button class="bt mini" data-acao="copiar" data-texto="${esc(e?.chave_sync)}">Copiar</button></p>` : ""}
-  </section>
-  <section class="painel"><h2>Sua conta</h2><p style="margin:0">Conectado como <b>${esc(S.email)}</b>.</p>
-    <div class="barra" style="margin-top:10px"><button class="bt" data-acao="sair">${S.db.modo === "demo" ? "Recomeçar demonstração" : "Sair"}</button></div></section>`;
+  </section>`,
+  conta: () => `<section class="painel"><h2>Sua conta</h2><p style="margin:0">Conectado como <b>${esc(S.email)}</b>.</p>
+    <div class="barra" style="margin-top:10px"><button class="bt" data-acao="sair">${S.db.modo === "demo" ? "Recomeçar demonstração" : "Sair"}</button></div></section>`,
+  };
+  return cabecalho("Configurações", esc(e?.nome)) + `<div class="seg abas" role="tablist">${ABAS_CFG.map(([k, t]) => `<button role="tab" aria-selected="${aba === k}" data-acao="cfg-aba" data-v="${k}" class="${aba === k ? "on" : ""}">${t}</button>`).join("")}</div>` + partes[aba]();
 }
 
 /* ---------------------------------------------------------------- ADMINISTRAÇÃO (equipe Aliber) */
@@ -1546,6 +1603,7 @@ document.addEventListener("click", async ev => {
     }
     if (a === "contas-status") { S.contas.status = el.dataset.v; document.querySelectorAll('[data-acao="contas-status"]').forEach(b => b.classList.toggle("on", b === el)); return desenharListaContas(); }
     if (a === "contas-tipo") { S.contas.tipo = el.dataset.v; document.querySelectorAll('[data-acao="contas-tipo"]').forEach(b => b.classList.toggle("on", b === el)); return desenharListaContas(); }
+    if (a === "cfg-aba") { S.cfgAba = el.dataset.v; return desenharConteudo(); }
     if (a === "dt-preset") { aplicarPreset(el.dataset.c, el.dataset.p); S[el.dataset.c].limite = 300; return desenharConteudo(); }
     if (a === "ordenar") { const o = S[el.dataset.c].ord; if (o.col === el.dataset.col) o.dir = -o.dir; else { o.col = el.dataset.col; o.dir = el.dataset.col === "valor" ? -1 : 1; }
       return el.dataset.c === "contas" ? desenharListaContas() : desenharListaReceber(); }
@@ -1628,6 +1686,16 @@ document.addEventListener("keydown", ev => { if (ev.key === "Escape" && $("#moda
 document.addEventListener("submit", async ev => {
   const f = ev.target; ev.preventDefault();
   if (f.dataset.form === "acesso") return enviarAcesso(f);
+  if (f.dataset.form === "perdas") {
+    try { const fv = $("#pd-forma").value, dados = { forma_perda: fv === "" ? null : +fv, conta_perdas_id: $("#pd-conta").value || null };
+      await S.db.atualizar("config_empresa", { empresa_id: S.empresaId }, dados); Object.assign(S.d.config, dados);
+      const f = S.d.formas.find(x => +x.codigo === dados.forma_perda);
+      if (f && $("#pd-renomear").checked && f.nome !== "Vale alimentação (perdas)") { const d2 = { nome: "Vale alimentação (perdas)", conta_financeira_id: null, taxa_percentual: 0 };
+        await S.db.atualizar("formas_pagamento", { empresa_id: S.empresaId, codigo: f.codigo }, d2); Object.assign(f, d2); }
+      toast(dados.forma_perda === null ? "Perdas desligadas." : "Forma das perdas salva."); desenharConteudo(); }
+    catch (e) { toast(e.message, true); }
+    return;
+  }
   if (f.dataset.form === "compras") {
     try { const dados = { importar_compras: $("#cp-importar").checked, conta_compras_id: $("#cp-conta").value || null, banco_compras_id: $("#cp-banco").value || null, compras_desde: $("#cp-desde").value };
       await S.db.atualizar("config_empresa", { empresa_id: S.empresaId }, dados); Object.assign(S.d.config, dados); toast("Configuração das compras salva."); }

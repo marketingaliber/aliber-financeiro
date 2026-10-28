@@ -21,7 +21,7 @@ import nuvem
 import resumo as R
 
 APP_NOME = "Aliber Financeiro"
-VERSAO = "1.5"
+VERSAO = "1.6"
 VERMELHO = "#D7262B"
 AZUL = "#1B4FA0"
 

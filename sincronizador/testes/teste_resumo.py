@@ -165,6 +165,8 @@ def rodar():
         rc = {x["origem_id"]: x for x in r["recebiveis"]}
         confere("recebível dinheiro sem troco", rc.get("p1", {}).get("valor"), 50)
         confere("recebível crédito", rc.get("p2", {}).get("valor"), 40)
+        confere("custo proporcional do pagamento em crédito (60 x 40/75)", rc.get("p2", {}).get("custo"), 32)
+        confere("custo do pagamento em dinheiro sem troco", rc.get("p1", {}).get("custo"), 20)
         if "p5" in rc:
             erros.append("recebimento de crediário entrou como recebível de venda")
         if set(rc) != {"p1", "p2", "p3", "p4"}:

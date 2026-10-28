@@ -44,6 +44,13 @@ DRE: Receita − Custos variáveis = **Margem de contribuição** − Despesas f
 - Só entram entradas a partir da data "Importar notas com entrada a partir de" (padrão: início do mês em que a loja começou a usar).
 - Ao atualizar o banco na nuvem, rode o `supabase/banco.sql` de novo no SQL Editor (pode rodar quantas vezes quiser).
 
+## Perdas de mercadoria (versão 1.6)
+- A loja lança a perda no PDV+ como venda, sempre na mesma forma de pagamento (ex.: Vale alimentação).
+- Configurações > Perdas: escolhe-se essa forma e a conta (padrão 3.2.5 Perdas de mercadoria, criada pelo banco.sql 1.6).
+- Essa forma sai da receita, dos recebíveis, do caixa e do faturamento. Na DRE, o custo dos itens (proporcional ao
+  pagamento) vai para 3.2.5 e sai de 3.2.1 (insumos pelas compras) ou do custo do cadastro: o total de custos não muda,
+  porque a mercadoria perdida já foi comprada; só deixa de existir a receita falsa.
+
 ## Recebíveis das vendas (versão 1.5)
 - Cada pagamento de venda (tabela `recebiveis`, só a sincronização grava) com NSU, autorização e parcelas.
 - O painel junta com o crediário em Contas a receber. Previsão = data da venda + prazo da forma de pagamento

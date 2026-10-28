@@ -8,6 +8,7 @@
 -- Versão 1.3: backup (exportar e restaurar uma loja) e travas de segurança.
 -- Versão 1.4: contas a receber (crediário do PDV+), só pela sincronização.
 -- Versão 1.5: recebíveis de todas as vendas (Pix, cartão, dinheiro...), só pela sincronização.
+-- Versão 1.6: perdas de mercadoria pela forma de pagamento escolhida (conta 3.2.5).
 --
 -- Plano de contas no modelo gerencial (3 níveis):
 --   1 RECEITA/FATURAMENTO      (receita)
@@ -170,6 +171,10 @@ create table if not exists config_empresa (
   compras_desde     date not null default (date_trunc('month', current_date))::date  -- não importa notas mais antigas
 );
 
+-- Versão 1.6: perdas de mercadoria lançadas no PDV+ como venda numa forma de pagamento própria (ex.: vale alimentação)
+alter table config_empresa add column if not exists forma_perda int;                                              -- código da forma no PDV+
+alter table config_empresa add column if not exists conta_perdas_id uuid references plano_contas on delete set null;  -- vazio = 3.2.5
+
 -- Contas importadas que o usuário excluiu no painel: não voltam na próxima sincronização
 create table if not exists pdv_ignorados (
   empresa_id uuid not null references empresas on delete cascade,
@@ -217,6 +222,7 @@ create table if not exists recebiveis (
   primary key (empresa_id, origem_id)
 );
 create index if not exists recebiveis_emp_data on recebiveis (empresa_id, data);
+alter table recebiveis add column if not exists custo numeric(12,2);   -- 1.6: parte do custo da venda (perdas a preço de custo)
 
 -- Resumo diário enviado pelo sincronizador (.exe) — só o sincronizador grava
 create table if not exists vendas_dia (
@@ -430,6 +436,9 @@ begin
     (new.id,'6.2.5','Desconto Obtido','entrada_nop',false,'desconto_obtido'),
     (new.id,'6.2.6','Receita de Juros','entrada_nop',false,'juros_recebidos')
   on conflict do nothing;
+  insert into plano_contas (empresa_id, codigo, nome, grupo, sintetica, automatica)
+  values (new.id, '3.2.5', 'Perdas de mercadoria', 'custo_variavel', false, 'perdas')
+  on conflict do nothing;
 
   insert into contas_financeiras (empresa_id, nome, tipo) values (new.id, 'Caixa dinheiro', 'caixa') returning id into caixa;
   insert into contas_financeiras (empresa_id, nome, tipo) values (new.id, 'Banco principal', 'banco') returning id into banco;
@@ -451,6 +460,11 @@ end $$;
 drop trigger if exists preparar_empresa on empresas;
 create trigger preparar_empresa after insert on empresas
   for each row execute function preparar_empresa();
+
+-- Lojas que já existiam antes da 1.6 ganham a conta 3.2.5 Perdas de mercadoria (se o código estiver livre)
+insert into plano_contas (empresa_id, codigo, nome, grupo, sintetica, automatica)
+select id, '3.2.5', 'Perdas de mercadoria', 'custo_variavel', false, 'perdas' from empresas
+on conflict do nothing;
 
 -- ---------------------------------------------------------------------
 -- Sincronização: o .exe chama esta função com a chave da empresa.
@@ -506,15 +520,16 @@ begin
   if dados ? 'recebiveis' then
     delete from recebiveis where empresa_id = e
        and data between coalesce((dados->>'recebiveis_ini')::date, ini) and fim;
-    insert into recebiveis (empresa_id, origem_id, data, hora, forma, valor, venda, tipo_venda, cliente, bandeira, nsu, autorizacao, parcelas)
+    insert into recebiveis (empresa_id, origem_id, data, hora, forma, valor, venda, tipo_venda, cliente, bandeira, nsu, autorizacao, parcelas, custo)
     select e, x.origem_id, x.data, x.hora, x.forma, coalesce(x.valor, 0), x.venda, x.tipo_venda, x.cliente, x.bandeira, x.nsu,
-           x.autorizacao, greatest(coalesce(x.parcelas, 1), 1)
+           x.autorizacao, greatest(coalesce(x.parcelas, 1), 1), x.custo
       from jsonb_to_recordset(dados->'recebiveis') as x(origem_id text, data date, hora text, forma int, valor numeric, venda text,
-           tipo_venda int, cliente text, bandeira int, nsu text, autorizacao text, parcelas int)
+           tipo_venda int, cliente text, bandeira int, nsu text, autorizacao text, parcelas int, custo numeric)
      where coalesce(x.origem_id, '') <> '' and x.data is not null
     on conflict (empresa_id, origem_id) do update set data = excluded.data, hora = excluded.hora, forma = excluded.forma,
            valor = excluded.valor, venda = excluded.venda, tipo_venda = excluded.tipo_venda, cliente = excluded.cliente,
-           bandeira = excluded.bandeira, nsu = excluded.nsu, autorizacao = excluded.autorizacao, parcelas = excluded.parcelas;
+           bandeira = excluded.bandeira, nsu = excluded.nsu, autorizacao = excluded.autorizacao, parcelas = excluded.parcelas,
+           custo = excluded.custo;
     get diagnostics nv = row_count;
   end if;
 
